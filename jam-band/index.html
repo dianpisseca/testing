@@ -153,7 +153,14 @@ footer { font-size: 13px; color: var(--ink-dim); text-wrap: pretty; padding: 0 2
 
   <!-- ======================= LIVE ======================= -->
   <section id="panel-live" class="panel" role="tabpanel" aria-labelledby="tab-live">
-    <p class="note alert">Wear headphones. Through a speaker, the microphone hears the band and the band starts following itself. Start with the phone volume low.</p>
+    <div class="field">
+      <div class="field-head"><label>I hear the band through</label></div>
+      <div class="seg">
+        <button id="o-spk" class="btn" type="button" aria-pressed="true">Phone speaker</button>
+        <button id="o-hp" class="btn" type="button" aria-pressed="false">Headphones</button>
+      </div>
+      <p class="note" id="o-note"></p>
+    </div>
     <p id="mic-warn" class="note bad" hidden>This view blocks the microphone, so Play live cannot hear your guitar here. Use Test a recording, or open the page in a browser tab of its own.</p>
 
     <button id="start" class="btn primary" type="button">Start listening</button>
@@ -347,7 +354,8 @@ footer { font-size: 13px; color: var(--ink-dim); text-wrap: pretty; padding: 0 2
 // ------------------------------------------------------------------------------------
 // tuning constants (same values as the Python version)
 // ------------------------------------------------------------------------------------
-const KAPPA = -0.80, CHORD_DELAY = 0.085, LOCK_CONF = 0.20, UNLOCK_CONF = 0.10;
+const TUNE = { win: 0.085, beta: 0.0, delay: 0.085, delay2: 0.15, roll: 1500.0, instant: 0.12, now: 0.08, aOn: 0.15, aPer: 0.7, wbass: 0.12, lowf: 330.0, per: 0.15, h3: 0.3, h5: 0.1, p7: 0.95 };
+const KAPPA = -0.80, LOCK_CONF = 0.20, UNLOCK_CONF = 0.10;
 const ON_MUL = 1.5, ON_MIN = 2.0, LOW_W = 2.0, GATE_NOTE = 0.88, OSF_SMOOTH_S = 0.03;
 const PHASE_CLIP = 98.0, PERIOD_GAIN = 0.15, PHASE_GAIN = 0.5;
 const GRID_MIN = 0.60, GRID_N = 6, GRID_DROP = 0.50;
@@ -1124,7 +1132,7 @@ const CH_A_ONSET = 0.15, CH_A_PERIODIC = 0.7, CH_MARGIN_NOW = 0.08, CH_MARGIN_TW
 class ChordTracker {
   constructor(sr) {
     this.sr = sr;
-    this.N = 1 << Math.ceil(Math.log2(0.085 * sr));
+    this.N = 1 << Math.ceil(Math.log2(TUNE.win * sr));
     this.nfft = this.N * 2;
     this.window = new Float64Array(this.N);
     for (let i = 0; i < this.N; i++) this.window[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / this.N);
@@ -1137,12 +1145,17 @@ class ChordTracker {
       for (let q = 0; q < NQ; q++) {
         const row = new Float64Array(12);
         const tpl = QUALITIES[q][1];
-        for (const iv of Object.keys(tpl)) row[(r + (+iv)) % 12] = tpl[iv];
+        for (const iv of Object.keys(tpl)) {
+          const t = r + (+iv), w = tpl[iv];
+          row[t % 12] += w;                              // each chord note also brings its overtones
+          row[(t + 7) % 12] += w * TUNE.h3;
+          row[(t + 4) % 12] += w * TUNE.h5;
+        }
         let nrm = 0;
         for (let i = 0; i < 12; i++) nrm += row[i] * row[i];
         nrm = Math.sqrt(nrm);
         for (let i = 0; i < 12; i++) this.T[(r * NQ + q) * 12 + i] = row[i] / nrm;
-        this.prior[r * NQ + q] = QUAL_PRIOR[QUALITIES[q][0]];
+        { const qn = QUALITIES[q][0]; this.prior[r * NQ + q] = (qn === '7' || qn === 'm7') ? TUNE.p7 : QUAL_PRIOR[qn]; }
       }
     }
     this.vocab = new Float64Array(NCH);
@@ -1155,6 +1168,7 @@ class ChordTracker {
     this.re = new Float64Array((this.nfft >> 1) + 1);
     this.im = new Float64Array((this.nfft >> 1) + 1);
     this.m = new Float64Array(this.k1 - this.k0 + 1);
+    this.mp = new Float64Array(this.k1 - this.k0 + 1);
     this.pc = new Float64Array(12); this.pcl = new Float64Array(12);
     this.pcn = new Float64Array(12); this.pln = new Float64Array(12);
     this.rn = new Float64Array(12);
@@ -1162,19 +1176,28 @@ class ChordTracker {
   }
 
   // fills pc / pcl; false when there is nothing to hear
-  _chroma(seg) {
-    const N = this.N, buf = this.buf, win = this.window, pc = this.pc, pcl = this.pcl;
-    pc.fill(0); pcl.fill(0);
+  _mag(seg, m) {
+    const N = this.N, buf = this.buf, win = this.window;
     for (let i = 0; i < N; i++) buf[i] = seg[i] * win[i];
     for (let i = N; i < this.nfft; i++) buf[i] = 0;
     this.rfft.forward(buf, this.re, this.im);
+    const k0 = this.k0, M = this.k1 - k0 + 1;
+    for (let i = 0; i < M; i++) m[i] = Math.sqrt(this.re[k0 + i] * this.re[k0 + i] + this.im[k0 + i] * this.im[k0 + i]);
+  }
+
+  // pre: the sound just before the strum; what was already ringing is taken out
+  _chroma(seg, pre) {
+    const pc = this.pc, pcl = this.pcl;
+    pc.fill(0); pcl.fill(0);
     const k0 = this.k0, M = this.k1 - k0 + 1, m = this.m;
+    if (pre && TUNE.beta > 0) {
+      const mp = this.mp;
+      this._mag(pre, mp);
+      this._mag(seg, m);
+      for (let i = 0; i < M; i++) { const v = m[i] - TUNE.beta * mp[i]; m[i] = v > 0 ? v : 0; }
+    } else this._mag(seg, m);
     let mx = 0;
-    for (let i = 0; i < M; i++) {
-      const v = Math.sqrt(this.re[k0 + i] * this.re[k0 + i] + this.im[k0 + i] * this.im[k0 + i]);
-      m[i] = v;
-      if (v > mx) mx = v;
-    }
+    for (let i = 0; i < M; i++) if (m[i] > mx) mx = m[i];
     if (mx < 1e-6) return false;
     const thr = 0.04 * mx;
     let any = false;
@@ -1187,43 +1210,55 @@ class ChordTracker {
       const f = (k0 + p + delta) * this.binw;
       const pcf = 12.0 * Math.log2(f / 440.0) + 9.0, pcr = pyround(pcf);
       const z = (pcf - pcr) / 0.30;
-      const w = Math.exp(-0.5 * z * z) * Math.pow(c, 0.7) / (1.0 + (f / 1500.0) * (f / 1500.0));
+      const w = Math.exp(-0.5 * z * z) * Math.pow(c, 0.7) / (1.0 + (f / TUNE.roll) * (f / TUNE.roll));
       const pcs = mod(pcr, 12);
       pc[pcs] += w;
-      if (f < 330.0) pcl[pcs] += w;
+      if (f < TUNE.lowf) pcl[pcs] += w;
       any = true;
     }
     return any;
   }
 
   // kind: 0 = a strum was just heard, 1 = periodic look.  Returns true when the chord *root* changed.
-  update(seg, kind) {
-    if (!this._chroma(seg)) return false;
+  _norm() {
     const pc = this.pc, pcl = this.pcl, pcn = this.pcn, pln = this.pln;
     let s = 0, n1 = 0, n2 = 0;
     for (let i = 0; i < 12; i++) { s += pc[i]; n1 += pc[i] * pc[i]; n2 += pcl[i] * pcl[i]; }
     if (s <= 1e-9) return false;
     n1 = Math.sqrt(n1); n2 = Math.sqrt(n2) + 1e-9;
     for (let i = 0; i < 12; i++) { pcn[i] = pc[i] / n1; pln[i] = pcl[i] / n2; }
+    return true;
+  }
+
+  update(seg, kind, pre) {
+    const pcn = this.pcn, pln = this.pln;
     let vmax = 0;
     for (let i = 0; i < NCH; i++) if (this.vocab[i] > vmax) vmax = this.vocab[i];
     const vdiv = 0.04 / (vmax + 1.0), T = this.T, prior = this.prior, vocab = this.vocab;
     if (kind === 0 && this.cur !== -1) {              // the strum on its own: does it clearly say "another chord"?
-      const s1 = this.s1;
-      let j = 0, jv = -Infinity;
-      for (let c = 0; c < NCH; c++) {
-        let dot = 0;
-        for (let i = 0; i < 12; i++) dot += T[c * 12 + i] * pcn[i];
-        const v = dot * prior[c] + W_BASS * pln[CH_ROOT[c]] + vocab[c] * vdiv;
-        s1[c] = v;
-        if (v > jv) { jv = v; j = c; }
+      const usePre = pre && TUNE.beta > 0;            // judged on what the strum added to the sound
+      if (this._chroma(seg, usePre ? pre : null) && this._norm()) {
+        const s1 = this.s1;
+        let j = 0, jv = -Infinity;
+        for (let c = 0; c < NCH; c++) {
+          let dot = 0;
+          for (let i = 0; i < 12; i++) dot += T[c * 12 + i] * pcn[i];
+          const v = dot * prior[c] + TUNE.wbass * pln[CH_ROOT[c]] + vocab[c] * vdiv;
+          s1[c] = v;
+          if (v > jv) { jv = v; j = c; }
+        }
+        if (j !== this.cur && CH_ROOT[j] !== CH_ROOT[this.cur] && s1[j] - s1[this.cur] > TUNE.instant) {
+          if (usePre) { if (!this._chroma(seg, null) || !this._norm()) return false; }
+          this.run.set(pcn); this.run_low.set(pln);
+          return this._set(j);
+        }
       }
-      if (j !== this.cur && s1[j] - s1[this.cur] > CH_INSTANT) {
-        this.run.set(pcn); this.run_low.set(pln);
-        return this._set(j);
-      }
+      if (usePre) { if (!this._chroma(seg, null) || !this._norm()) return false; }
+      else if (!this._norm()) return false;
+    } else {
+      if (!this._chroma(seg, null) || !this._norm()) return false;
     }
-    const a = kind === 0 ? CH_A_ONSET : CH_A_PERIODIC, run = this.run, rl = this.run_low, rn = this.rn;
+    const a = kind === 0 ? TUNE.aOn : TUNE.aPer, run = this.run, rl = this.run_low, rn = this.rn;
     let nr = 0;
     for (let i = 0; i < 12; i++) {
       run[i] = a * run[i] + (1 - a) * pcn[i];
@@ -1237,14 +1272,14 @@ class ChordTracker {
     for (let c = 0; c < NCH; c++) {
       let dot = 0;
       for (let i = 0; i < 12; i++) dot += T[c * 12 + i] * rn[i];
-      const v = dot * prior[c] + W_BASS * rl[CH_ROOT[c]] + vocab[c] * vdiv;
+      const v = dot * prior[c] + TUNE.wbass * rl[CH_ROOT[c]] + vocab[c] * vdiv;
       sc[c] = v;
       if (v > bv) { bv = v; bi = c; }
     }
     if (this.cur === -1) return this._set(bi);
     if (bi === this.cur) { this.pending = -1; return false; }
     const margin = sc[bi] - sc[this.cur];
-    if (margin > CH_MARGIN_NOW || (margin > CH_MARGIN_TWICE && this.pending === bi)) return this._set(bi);
+    if (margin > TUNE.now || (margin > CH_MARGIN_TWICE && this.pending === bi)) return this._set(bi);
     this.pending = bi;
     return false;
   }
@@ -1310,11 +1345,12 @@ class Engine {
     this.chords = new ChordTracker(sr);
     this.clock = new Clock();
     this.rng = new Rng(cfg.seed);
-    const need = this.chords.N + 4 * Math.max(cfg.blocksize, 1024);
+    const need = 4 * this.chords.N + Math.trunc(0.6 * sr);
     this.H = 1 << Math.ceil(Math.log2(need));
     this.hmask = this.H - 1;
     this.hist = new Float32Array(this.H);
     this.seg = new Float64Array(this.chords.N);
+    this.seg_pre = new Float64Array(this.chords.N);
     this.n = 0;
     this.n_block0 = 0;
     this.L = Math.trunc(cfg.latency_ms * 1e-3 * sr);
@@ -1590,7 +1626,8 @@ class Engine {
       this.chords.run.fill(0.0);                     // forget the previous chord's notes
       this.chords.run_low.fill(0.0);
     }
-    this.eval_queue.push(tOn + CHORD_DELAY * sr);
+    this.eval_queue.push(tOn + TUNE.delay * sr);
+    if (TUNE.delay2 > 0) { this.eval_queue.push(tOn + TUNE.delay2 * sr); this.eval_queue.sort((a, b) => a - b); }
     if (cfg.bpm && !clk.valid) {
       clk.set(tOn, 60.0 * sr / cfg.bpm, 0);          // the first strum is the "1"
       this.down_idx = 0;
@@ -1610,7 +1647,7 @@ class Engine {
     const sr = this.sr;
     while (this.eval_queue.length && this.eval_queue[0] <= this.n) this._chordEval(Math.trunc(this.eval_queue.shift()), 0);
     if (this.n >= this.next_periodic) {
-      this.next_periodic = this.n + Math.trunc(0.15 * sr);
+      this.next_periodic = this.n + Math.trunc(TUNE.per * sr);
       this._chordEval(this.n, 1);
     }
   }
@@ -1627,8 +1664,16 @@ class Engine {
       e2 += v * v;
     }
     if (20.0 * Math.log10(Math.sqrt(e2 / N) + 1e-9) < this.cfg.gate_db) return;
-    if (this.chords.update(seg, kind)) {
-      let tOn = tEnd - CHORD_DELAY * this.sr;
+    let pre = null;
+    if (kind === 0 && TUNE.beta > 0 && this.last_onset !== null) {
+      const pe = Math.trunc(this.last_onset - 0.015 * this.sr);       // just before the strum
+      if (pe - N >= 0 && (this.n - pe) + N <= H && tEnd - this.last_onset < 0.4 * this.sr) {
+        pre = this.seg_pre;
+        for (let i = 0; i < N; i++) pre[i] = hist[(pe - N + i) & hm];
+      }
+    }
+    if (this.chords.update(seg, kind, pre)) {
+      let tOn = tEnd - TUNE.delay * this.sr;
       if (kind !== 0 && this.last_onset !== null && 0 <= tEnd - this.last_onset && tEnd - this.last_onset < 0.6 * this.sr) {
         tOn = this.last_onset;                       // a look between strums: the change began at the last strum
       }
@@ -1926,7 +1971,7 @@ class Engine {
 
 const api = {
   makeConfig, Engine, Mixer, FrontEnd, BeatTracker, Clock, ChordTracker, ChordMemory, FFT, RFFT, Rng,
-  makeInstruments, makeDrumKit, makeBassBank, renderBassNote, STYLES, NOTE_NAMES, BASS_LO, BASS_HI,
+  TUNE, makeInstruments, makeDrumKit, makeBassBank, renderBassNote, STYLES, NOTE_NAMES, BASS_LO, BASS_HI,
   CH_ROOT, CH_Q, NCH,
 };
 if (typeof module !== 'undefined' && module.exports) module.exports = api;
@@ -2063,7 +2108,7 @@ function workletMain() {
 // settings that are remembered on this device (when the browser lets the page do that)
 // ---------------------------------------------------------------------------------------
 const DEFAULTS = {
-  style: 'rock', level: 50, drums: 100, bass: 100, lat: 60, tempoMode: 'auto', bpm: 100,
+  out: 'spk', style: 'rock', level: 50, drums: 100, bass: 100, lat: 60, tempoMode: 'auto', bpm: 100,
   monitor: false, gate: -50, tone: 'finger', fills: true, predict: true,
   cStyle: 'rock', cTempoMode: 'auto', cBpm: 100,
 };
@@ -2299,7 +2344,7 @@ async function startLive() {
     let stream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({
-        audio: { channelCount: { ideal: 1 }, echoCancellation: { ideal: false }, noiseSuppression: { ideal: false }, autoGainControl: { ideal: false } },
+        audio: { channelCount: { ideal: 1 }, echoCancellation: { ideal: prefs.out === 'spk' }, noiseSuppression: { ideal: false }, autoGainControl: { ideal: false } },
       });
     } catch (err) {
       kitP.catch(() => {});
@@ -2433,6 +2478,17 @@ function initLiveControls() {
     $('bpm-box').hidden = prefs.tempoMode !== 'fixed';
     $('bpm-in').value = prefs.bpm;
   };
+  const setOutUI = () => {
+    $('o-spk').setAttribute('aria-pressed', String(prefs.out === 'spk'));
+    $('o-hp').setAttribute('aria-pressed', String(prefs.out === 'hp'));
+    $('o-note').textContent = prefs.out === 'spk'
+      ? 'The phone tries to remove the band from what the microphone hears. Keep the volume moderate and the phone close to the guitar. Headphones still work best.'
+      : 'Best for chord detection: the microphone hears only your guitar.';
+  };
+  const setOut = (v) => { if (prefs.out === v) return; prefs.out = v; savePrefs(); setOutUI(); if (live) { stopLive(); startLive(); } };
+  $('o-spk').addEventListener('click', () => setOut('spk'));
+  $('o-hp').addEventListener('click', () => setOut('hp'));
+  setOutUI();
   const applyTempo = () => { liveSend('bpm', prefs.tempoMode === 'fixed' ? prefs.bpm : null); };
   $('t-auto').addEventListener('click', () => { prefs.tempoMode = 'auto'; savePrefs(); setTempoUI(); applyTempo(); });
   $('t-fixed').addEventListener('click', () => { prefs.tempoMode = 'fixed'; savePrefs(); setTempoUI(); applyTempo(); });
