@@ -1,0 +1,2814 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#12100d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Jam Band">
+<title>Jam Band</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap">
+<style>
+/* Layout: one column of panels, like a pedalboard. The live readout is the loudest thing on screen. */
+:root {
+  --bg: #12100d;
+  --panel: #1b1713;
+  --panel-hi: #261f18;
+  --line: #3a3027;
+  --ink: #f3eadc;
+  --ink-dim: #ab9d89;
+  --amber: #ffa21f;
+  --amber-ink: #1c1203;
+  --ok: #7fdc97;
+  --warn: #ffd166;
+  --bad: #ff7a66;
+  --tl-band: rgba(255, 162, 31, 0.10);
+  --tl-wave: #8f8472;
+  --tl-kick: #ffa21f;
+  --tl-snare: #f3eadc;
+  --tl-bass: #7fdc97;
+  --font-display: "Barlow Condensed", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Barlow", "Helvetica Neue", Arial, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); }
+body {
+  font-family: var(--font-body); font-size: 16px; line-height: 1.4; -webkit-text-size-adjust: 100%;
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(32px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+}
+.app { max-width: 520px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+h1 { margin: 0; font: 700 34px/1 var(--font-display); letter-spacing: 0.03em; text-transform: uppercase; text-wrap: balance; }
+h1 b { color: var(--amber); font-weight: 700; }
+h2 { margin: 0; font: 600 13px/1.2 var(--font-body); letter-spacing: 0.09em; text-transform: uppercase; color: var(--ink-dim); }
+p { margin: 0; }
+.chip { font: 600 13px/1 var(--font-body); padding: 7px 11px; border-radius: 99px; border: 1px solid var(--line); color: var(--ink-dim); background: var(--panel); white-space: nowrap; }
+.chip[data-tone="ok"] { color: var(--ok); border-color: #2c5a3a; }
+.chip[data-tone="bad"] { color: var(--bad); border-color: #6b3128; }
+
+.tabs { display: grid; grid-template-columns: 1fr 1fr; padding: 4px; gap: 4px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; }
+.tabs button { min-height: 44px; border: 0; border-radius: 10px; background: transparent; color: var(--ink-dim); font: 600 16px var(--font-body); cursor: pointer; }
+.tabs button[aria-selected="true"] { background: var(--panel-hi); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line); }
+
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
+.panel { display: flex; flex-direction: column; gap: 14px; }
+.note { font-size: 14px; color: var(--ink-dim); text-wrap: pretty; }
+.note.alert { color: var(--warn); }
+.note.bad { color: var(--bad); }
+
+.btn { min-height: 50px; padding: 0 18px; border-radius: 14px; border: 1px solid var(--line); background: var(--panel-hi); color: var(--ink); font: 600 16px var(--font-body); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; text-align: center; }
+.btn:disabled { opacity: 0.5; cursor: default; }
+.btn.primary { min-height: 58px; width: 100%; border: 0; background: var(--amber); color: var(--amber-ink); font: 700 21px/1.1 var(--font-display); letter-spacing: 0.05em; text-transform: uppercase; }
+.btn.primary.running { background: transparent; color: var(--bad); box-shadow: inset 0 0 0 2px var(--bad); }
+.btn[aria-pressed="true"] { background: var(--amber); color: var(--amber-ink); border-color: var(--amber); }
+button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible, .filebtn:focus-within, .sw input:focus-visible + span { outline: 3px solid #fff; outline-offset: 2px; }
+
+.readout { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 10px; }
+.cell { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.cell .val { font: 700 68px/0.95 var(--font-display); font-variant-numeric: tabular-nums; letter-spacing: 0.01em; white-space: nowrap; }
+.beatrow { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.leds { display: flex; gap: 14px; align-items: center; height: 32px; }
+.leds i { width: 20px; height: 20px; border-radius: 50%; background: var(--panel-hi); box-shadow: inset 0 0 0 1px var(--line); transition: background 0.06s, box-shadow 0.06s; }
+.leds i:first-child { width: 26px; height: 26px; }
+.leds i.on { background: var(--ink); box-shadow: 0 0 12px rgba(243, 234, 220, 0.7); }
+.leds i:first-child.on { background: var(--amber); box-shadow: 0 0 16px rgba(255, 162, 31, 0.9); }
+
+.meter-head { display: flex; justify-content: space-between; align-items: baseline; }
+.meter-head span { font-size: 13px; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+.meter { position: relative; height: 10px; border-radius: 99px; background: var(--panel-hi); overflow: hidden; box-shadow: inset 0 0 0 1px var(--line); }
+.meter > div { height: 100%; width: 0; background: linear-gradient(90deg, var(--ok), var(--warn) 80%, var(--bad)); background-size: 100vw 100%; transition: width 0.05s linear; }
+.meter > b { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--amber); }
+.state { font-size: 16px; font-weight: 500; display: flex; gap: 10px; align-items: baseline; min-height: 24px; }
+.state::before { content: ""; flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--ink-dim); transform: translateY(-1px); }
+.state[data-tone="ok"]::before { background: var(--ok); }
+.state[data-tone="busy"]::before { background: var(--warn); }
+.state[data-tone="warn"]::before { background: var(--warn); }
+.state[data-tone="bad"]::before { background: var(--bad); }
+.state[data-tone="bad"] { color: var(--bad); }
+
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.field-head label { font-weight: 600; }
+.field-head output { color: var(--ink-dim); font-variant-numeric: tabular-nums; font-size: 15px; }
+input[type="range"] { width: 100%; height: 34px; accent-color: var(--amber); margin: 0; }
+select, input[type="number"] { min-height: 48px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel-hi); color: var(--ink); font: 500 16px var(--font-body); width: 100%; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.seg { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.stepper { display: grid; grid-template-columns: 52px 1fr 52px; gap: 6px; }
+.stepper .btn { padding: 0; font-size: 22px; }
+.stepper input { text-align: center; font-weight: 600; font-variant-numeric: tabular-nums; }
+.switches { display: flex; flex-wrap: wrap; gap: 8px; }
+.sw { position: relative; }
+.sw input { position: absolute; opacity: 0; inset: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+.sw span { display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; border-radius: 99px; border: 1px solid var(--line); background: var(--panel-hi); color: var(--ink-dim); font-weight: 600; }
+.sw input:checked + span { background: var(--amber); border-color: var(--amber); color: var(--amber-ink); }
+details { border-top: 1px solid var(--line); padding-top: 12px; }
+details + details { margin-top: -2px; }
+summary { cursor: pointer; font-weight: 600; min-height: 32px; display: flex; align-items: center; }
+details[open] summary { margin-bottom: 12px; }
+details > .stack { display: flex; flex-direction: column; gap: 14px; }
+dl { margin: 0; display: grid; gap: 6px; font-size: 14px; }
+dl div { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px dashed var(--line); padding-bottom: 6px; }
+dt { color: var(--ink-dim); }
+dd { margin: 0; font-variant-numeric: tabular-nums; text-align: right; }
+
+.filebtn { position: relative; width: 100%; }
+.filebtn input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; font-size: 0; }
+.fileinfo { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.fileinfo b { overflow-wrap: anywhere; font-weight: 600; }
+.fileinfo span { color: var(--ink-dim); font-size: 14px; }
+.prog { height: 8px; border-radius: 99px; background: var(--panel-hi); overflow: hidden; }
+.prog > div { height: 100%; width: 0; background: var(--amber); }
+.facts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.facts .val { font: 700 44px/1 var(--font-display); font-variant-numeric: tabular-nums; }
+.chords { font: 600 22px/1.3 var(--font-display); letter-spacing: 0.05em; overflow-wrap: anywhere; }
+.tl-wrap { position: relative; height: 132px; background: var(--panel-hi); border-radius: 12px; overflow: hidden; box-shadow: inset 0 0 0 1px var(--line); cursor: pointer; touch-action: manipulation; }
+.tl-wrap canvas { display: block; width: 100%; }
+.playhead { position: absolute; top: 0; bottom: 0; left: 0; width: 2px; background: var(--ink); pointer-events: none; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; color: var(--ink-dim); }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+.transport { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; }
+.time { font-variant-numeric: tabular-nums; color: var(--ink-dim); font-size: 15px; }
+footer { font-size: 13px; color: var(--ink-dim); text-wrap: pretty; padding: 0 2px; }
+@media (max-width: 380px) {
+  .cell .val { font-size: 58px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>Jam <b>Band</b></h1>
+    <span id="mic-chip" class="chip">Mic off</span>
+  </header>
+
+  <div class="tabs" role="tablist">
+    <button id="tab-live" role="tab" aria-selected="true" aria-controls="panel-live">Play live</button>
+    <button id="tab-clip" role="tab" aria-selected="false" aria-controls="panel-clip">Test a recording</button>
+  </div>
+
+  <!-- ======================= LIVE ======================= -->
+  <section id="panel-live" class="panel" role="tabpanel" aria-labelledby="tab-live">
+    <p class="note alert">Wear headphones. Through a speaker, the microphone hears the band and the band starts following itself. Start with the phone volume low.</p>
+    <p id="mic-warn" class="note bad" hidden>This view blocks the microphone, so Play live cannot hear your guitar here. Use Test a recording, or open the page in a browser tab of its own.</p>
+
+    <button id="start" class="btn primary" type="button">Start listening</button>
+
+    <div class="card">
+      <div class="readout">
+        <div class="cell"><h2>Tempo</h2><div id="r-bpm" class="val">&ndash;</div></div>
+        <div class="cell"><h2>Chord</h2><div id="r-chord" class="val">&ndash;</div></div>
+        <div class="beatrow"><h2>Beat</h2><div id="leds" class="leds" aria-hidden="true"><i></i><i></i><i></i><i></i></div></div>
+      </div>
+      <div>
+        <div class="meter-head"><h2>Mic level</h2><span id="meter-val"></span></div>
+        <div class="meter" style="margin-top:6px"><div id="meter-fill"></div><b id="gate-mark" title="Quieter than this is ignored"></b></div>
+      </div>
+      <p id="state" class="state" role="status" aria-live="polite">Press Start, then play.</p>
+    </div>
+
+    <div class="card">
+      <h2>Band</h2>
+      <div class="field">
+        <div class="field-head"><label for="style">Style</label></div>
+        <select id="style">
+          <option value="rock">Rock</option>
+          <option value="folk">Folk</option>
+          <option value="ballad">Ballad</option>
+          <option value="shuffle">Shuffle</option>
+          <option value="disco">Disco</option>
+          <option value="waltz">Waltz (3/4)</option>
+        </select>
+      </div>
+      <div class="field">
+        <div class="field-head"><label for="level">Band volume</label><output id="level-o" for="level"></output></div>
+        <input id="level" type="range" min="0" max="100" step="1" value="50">
+      </div>
+      <div class="switches">
+        <label class="sw"><input id="sw-drums" type="checkbox" checked><span>Drums</span></label>
+        <label class="sw"><input id="sw-bass" type="checkbox" checked><span>Bass</span></label>
+      </div>
+      <div class="grid2">
+        <button id="mute" class="btn" type="button" aria-pressed="false">Mute band</button>
+        <button id="beat1" class="btn" type="button">This is beat 1</button>
+        <button id="half" class="btn" type="button" style="grid-column: 1 / -1">Shift half a beat</button>
+      </div>
+      <p class="note">If the drums land on the off-beat, tap Shift half a beat. If the bar starts on the wrong beat, tap This is beat 1 as you play the first beat.</p>
+    </div>
+
+    <div class="card">
+      <h2>Timing</h2>
+      <div class="field">
+        <div class="field-head"><label for="lat">Sync</label><output id="lat-o" for="lat"></output></div>
+        <input id="lat" type="range" min="0" max="400" step="5" value="60">
+        <p class="note">Raise this if the band sounds late. Bluetooth headphones usually need 150 to 300 ms.</p>
+      </div>
+      <div class="field">
+        <div class="field-head"><label>Tempo</label></div>
+        <div class="seg">
+          <button id="t-auto" class="btn" type="button" aria-pressed="true">Follow me</button>
+          <button id="t-fixed" class="btn" type="button" aria-pressed="false">Fixed</button>
+        </div>
+        <div id="bpm-box" class="stepper" hidden>
+          <button id="bpm-dn" class="btn" type="button" aria-label="Slower">&minus;</button>
+          <input id="bpm-in" type="number" inputmode="numeric" min="40" max="220" value="100" aria-label="Beats per minute">
+          <button id="bpm-up" class="btn" type="button" aria-label="Faster">+</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <details>
+        <summary>More settings</summary>
+        <div class="stack">
+          <div class="field">
+            <div class="field-head"><label for="drums">Drum volume</label><output id="drums-o" for="drums"></output></div>
+            <input id="drums" type="range" min="0" max="150" step="1" value="100">
+          </div>
+          <div class="field">
+            <div class="field-head"><label for="bass">Bass volume</label><output id="bass-o" for="bass"></output></div>
+            <input id="bass" type="range" min="0" max="150" step="1" value="100">
+          </div>
+          <div class="field">
+            <div class="field-head"><label for="gate">Ignore sounds quieter than</label><output id="gate-o" for="gate"></output></div>
+            <input id="gate" type="range" min="-70" max="-30" step="1" value="-50">
+            <p class="note">The amber mark on the mic level shows this. Raise it if room noise keeps the band from stopping.</p>
+          </div>
+          <div class="field">
+            <div class="field-head"><label for="tone">Bass sound</label></div>
+            <select id="tone"><option value="finger">Finger bass</option><option value="synth">Synth bass</option></select>
+            <p id="tone-note" class="note" hidden>Applies the next time you press Start.</p>
+          </div>
+          <div class="switches">
+            <label class="sw"><input id="sw-monitor" type="checkbox"><span>Hear my guitar</span></label>
+            <label class="sw"><input id="sw-fills" type="checkbox" checked><span>Drum fills</span></label>
+            <label class="sw"><input id="sw-predict" type="checkbox" checked><span>Learn chord changes</span></label>
+          </div>
+          <p class="note">Hear my guitar plays the microphone through the headphones. Leave it off for an acoustic guitar, because you already hear it. Settings are kept on this device when the browser allows it.</p>
+        </div>
+      </details>
+      <details>
+        <summary>About this device</summary>
+        <dl id="diag"></dl>
+      </details>
+    </div>
+  </section>
+
+  <!-- ======================= CLIP ======================= -->
+  <section id="panel-clip" class="panel" role="tabpanel" aria-labelledby="tab-clip" hidden>
+    <div class="card">
+      <p>Record 30 to 60 seconds of your guitar with any recorder, or film yourself playing, then choose the file here. The band is added to your playing and you listen back.</p>
+      <label class="btn primary filebtn">Choose a recording
+        <input id="clip-file" type="file" accept="audio/*,video/*" aria-label="Choose a recording">
+      </label>
+      <p class="note">Strum steadily for the first ten seconds or so. A clean sound works best. A .m4a, .mp3 or .wav file is fine.</p>
+      <p class="note">On an iPhone: record in Voice Memos, tap Share, Save to Files, then choose it here. Or film yourself with the Camera app and pick the video.</p>
+    </div>
+
+    <div id="clip-work" class="card" hidden>
+      <div class="fileinfo"><b id="clip-name"></b><span id="clip-meta"></span></div>
+      <div class="field">
+        <div class="field-head"><label for="cstyle">Style</label></div>
+        <select id="cstyle">
+          <option value="rock">Rock</option>
+          <option value="folk">Folk</option>
+          <option value="ballad">Ballad</option>
+          <option value="shuffle">Shuffle</option>
+          <option value="disco">Disco</option>
+          <option value="waltz">Waltz (3/4)</option>
+        </select>
+      </div>
+      <div class="field">
+        <div class="field-head"><label>Tempo</label></div>
+        <div class="seg">
+          <button id="c-auto" class="btn" type="button" aria-pressed="true">Follow me</button>
+          <button id="c-fixed" class="btn" type="button" aria-pressed="false">Fixed</button>
+        </div>
+        <div id="c-bpm-box" hidden>
+          <input id="c-bpm" type="number" inputmode="numeric" min="40" max="220" value="100" aria-label="Beats per minute">
+          <p class="note" style="margin-top:6px">With a fixed tempo the first strum is beat 1.</p>
+        </div>
+      </div>
+      <button id="clip-run" class="btn primary" type="button">Add the band</button>
+      <div id="clip-prog" class="prog" hidden><div id="clip-bar"></div></div>
+    </div>
+
+    <p id="clip-msg" class="state" role="status" aria-live="polite" data-tone="">Choose a recording to begin.</p>
+
+    <div id="clip-out" class="card" hidden>
+      <div class="facts">
+        <div class="cell"><h2>Band joined</h2><div id="res-join" class="val">&ndash;</div></div>
+        <div class="cell"><h2>Tempo</h2><div id="res-bpm" class="val">&ndash;</div></div>
+      </div>
+      <div class="cell"><h2>Chords heard</h2><div id="res-chords" class="chords">&ndash;</div></div>
+      <div id="tl-wrap" class="tl-wrap" aria-label="Timeline of your playing and the band. Tap to play from there.">
+        <canvas id="tl" height="132"></canvas>
+        <div id="playhead" class="playhead"></div>
+      </div>
+      <div class="legend">
+        <span><i style="background:var(--tl-wave)"></i>Your guitar</span>
+        <span><i style="background:var(--tl-kick)"></i>Kick</span>
+        <span><i style="background:var(--tl-snare)"></i>Snare</span>
+        <span><i style="background:var(--tl-bass)"></i>Bass</span>
+      </div>
+      <div class="transport">
+        <button id="play" class="btn primary" type="button">Play</button>
+        <span id="seek-time" class="time">0:00</span>
+      </div>
+      <div class="grid2">
+        <div class="field">
+          <div class="field-head"><label for="g-guitar">Guitar</label><output id="g-guitar-o" for="g-guitar">90%</output></div>
+          <input id="g-guitar" type="range" min="0" max="150" step="1" value="90">
+        </div>
+        <div class="field">
+          <div class="field-head"><label for="g-band">Band</label><output id="g-band-o" for="g-band">100%</output></div>
+          <input id="g-band" type="range" min="0" max="150" step="1" value="100">
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>The band reacts to what it hears. It needs about five seconds of steady strumming before it joins, and it stops a few beats after you do. Heavy distortion hides the chord notes, so a clean sound works best.</footer>
+</div>
+
+<script id="core-src">
+/* Jam Band core: the listening + playing engine of jam_band.py, ported to JavaScript.
+ * No DOM and no Web Audio in here, so the same file runs in an AudioWorklet, a Worker,
+ * the page, or Node (for the tests).  Engine.process(inBlock, B, outBlock) = the band for
+ * that block of guitar, exactly as the Python Engine.process does.
+ */
+(function (root) {
+'use strict';
+
+// ------------------------------------------------------------------------------------
+// tuning constants (same values as the Python version)
+// ------------------------------------------------------------------------------------
+const KAPPA = -0.80, CHORD_DELAY = 0.085, LOCK_CONF = 0.20, UNLOCK_CONF = 0.10;
+const ON_MUL = 1.5, ON_MIN = 2.0, LOW_W = 2.0, GATE_NOTE = 0.88, OSF_SMOOTH_S = 0.03;
+const PHASE_CLIP = 98.0, PERIOD_GAIN = 0.15, PHASE_GAIN = 0.5;
+const GRID_MIN = 0.60, GRID_N = 6, GRID_DROP = 0.50;
+const PRIOR_CENTER = 110.0, PRIOR_SIGMA = 1.6, PRIOR_SLOW = 0.1;
+const SWITCH_FRAC = 0.7, SWITCH_N = 3;
+const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+
+function makeConfig(over) {
+  const c = {
+    sr: 44100, blocksize: 128, style: 'rock', bpm: null, bpm_min: 60.0, bpm_max: 180.0,
+    gate_db: -50.0, level: 0.5, drums: true, bass: true, drum_level: 1.0, bass_level: 1.0,
+    bass_tone: 'finger', latency_ms: 0.0, swing: null, humanize_ms: 4.0, fills: true,
+    stop_beats: 6, predict: true, seed: 1, record: false,
+  };
+  if (over) {
+    for (const k of Object.keys(over)) {
+      if (!(k in c)) throw new TypeError('unknown setting: ' + k);
+      c[k] = over[k];
+    }
+  }
+  return c;
+}
+
+// ------------------------------------------------------------------------------------
+// small helpers
+// ------------------------------------------------------------------------------------
+function mod(a, m) { return ((a % m) + m) % m; }
+function pyround(x) {                       // round half to even, like Python / numpy
+  const f = Math.floor(x), d = x - f;
+  if (d < 0.5) return f;
+  if (d > 0.5) return f + 1;
+  return (f % 2 === 0) ? f : f + 1;
+}
+function clamp(x, lo, hi) { return x < lo ? lo : (x > hi ? hi : x); }
+function midiToHz(m) { return 440.0 * Math.pow(2.0, (m - 69.0) / 12.0); }
+
+class Rng {                                  // small seeded generator (mulberry32 + Box-Muller)
+  constructor(seed) { this.s = (seed >>> 0) || 1; this.spare = null; }
+  next() {
+    this.s = (this.s + 0x6D2B79F5) >>> 0;
+    let t = this.s;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  }
+  uniform(a, b) { return a + (b - a) * this.next(); }
+  normal(mu, sd) {
+    if (mu === undefined) { mu = 0; sd = 1; }
+    if (this.spare !== null) { const v = this.spare; this.spare = null; return mu + sd * v; }
+    let u = 0;
+    while (u === 0) u = this.next();
+    const v = this.next(), r = Math.sqrt(-2 * Math.log(u)), th = 2 * Math.PI * v;
+    this.spare = r * Math.sin(th);
+    return mu + sd * r * Math.cos(th);
+  }
+}
+
+// ------------------------------------------------------------------------------------
+// FFT (radix 2).  FFT = complex, in place.  RFFT = real input via a half-size complex FFT.
+// ------------------------------------------------------------------------------------
+class FFT {
+  constructor(n) {
+    this.n = n;
+    this.rev = new Uint32Array(n);
+    const bits = Math.round(Math.log2(n));
+    for (let i = 0; i < n; i++) {
+      let r = 0;
+      for (let b = 0; b < bits; b++) r |= ((i >> b) & 1) << (bits - 1 - b);
+      this.rev[i] = r;
+    }
+    this.cos = new Float64Array(n >> 1);
+    this.sin = new Float64Array(n >> 1);
+    for (let i = 0; i < (n >> 1); i++) {
+      const a = -2 * Math.PI * i / n;
+      this.cos[i] = Math.cos(a);
+      this.sin[i] = Math.sin(a);
+    }
+  }
+  transform(re, im) {                        // forward, e^{-i...}
+    const n = this.n, rev = this.rev, cs = this.cos, sn = this.sin;
+    for (let i = 0; i < n; i++) {
+      const j = rev[i];
+      if (j > i) {
+        let t = re[i]; re[i] = re[j]; re[j] = t;
+        t = im[i]; im[i] = im[j]; im[j] = t;
+      }
+    }
+    for (let size = 2; size <= n; size <<= 1) {
+      const half = size >> 1, step = n / size;
+      for (let start = 0; start < n; start += size) {
+        for (let j = 0, k = 0; j < half; j++, k += step) {
+          const wr = cs[k], wi = sn[k];
+          const a = start + j, b = a + half;
+          const tr = re[b] * wr - im[b] * wi, ti = re[b] * wi + im[b] * wr;
+          re[b] = re[a] - tr; im[b] = im[a] - ti;
+          re[a] += tr; im[a] += ti;
+        }
+      }
+    }
+  }
+}
+
+class RFFT {
+  constructor(n) {
+    this.n = n;
+    const h = this.h = n >> 1;
+    this.fft = new FFT(h);
+    this.zr = new Float64Array(h);
+    this.zi = new Float64Array(h);
+    this.wr = new Float64Array(h + 1);
+    this.wi = new Float64Array(h + 1);
+    for (let k = 0; k <= h; k++) {
+      const a = -2 * Math.PI * k / n;
+      this.wr[k] = Math.cos(a);
+      this.wi[k] = Math.sin(a);
+    }
+  }
+  // x: length n real input.  outRe/outIm: length n/2+1  (bins 0 .. n/2)
+  forward(x, outRe, outIm) {
+    const h = this.h, zr = this.zr, zi = this.zi;
+    for (let i = 0; i < h; i++) { zr[i] = x[2 * i]; zi[i] = x[2 * i + 1]; }
+    this.fft.transform(zr, zi);
+    for (let k = 0; k <= h; k++) {
+      const k1 = k === h ? 0 : k, k2 = (h - k) % h;
+      const ar = zr[k1], ai = zi[k1], br = zr[k2], bi = -zi[k2];
+      const er = (ar + br) * 0.5, ei = (ai + bi) * 0.5;       // spectrum of the even samples
+      const dr = (ar - br) * 0.5, di = (ai - bi) * 0.5;
+      const or_ = di, oi = -dr;                                 // spectrum of the odd samples  ((a-b)/2i)
+      const wr = this.wr[k], wi = this.wi[k];
+      outRe[k] = er + (or_ * wr - oi * wi);
+      outIm[k] = ei + (or_ * wi + oi * wr);
+    }
+  }
+}
+
+const _fftCache = new Map(), _rfftCache = new Map();
+function getFFT(n) { let f = _fftCache.get(n); if (!f) { f = new FFT(n); _fftCache.set(n, f); } return f; }
+function getRFFT(n) { let f = _rfftCache.get(n); if (!f) { f = new RFFT(n); _rfftCache.set(n, f); } return f; }
+
+// ------------------------------------------------------------------------------------
+// instrument sounds (synthesised once at start-up; the Engine only mixes them)
+// ------------------------------------------------------------------------------------
+function biquad(kind, fc, sr, q) {
+  if (q === undefined) q = 0.7071;
+  const w0 = 2.0 * Math.PI * fc / sr, cw = Math.cos(w0), sw = Math.sin(w0), al = sw / (2.0 * q);
+  let b0, b1, b2;
+  if (kind === 'lp') { b0 = (1 - cw) / 2; b1 = 1 - cw; b2 = (1 - cw) / 2; }
+  else if (kind === 'hp') { b0 = (1 + cw) / 2; b1 = -(1 + cw); b2 = (1 + cw) / 2; }
+  else { b0 = al; b1 = 0.0; b2 = -al; }                         // 'bp', constant 0 dB peak gain
+  const a0 = 1 + al, a1 = -2 * cw, a2 = 1 - al;
+  return [b0 / a0, b1 / a0, b2 / a0, a1 / a0, a2 / a0];
+}
+function filt(x, c) {
+  const b0 = c[0], b1 = c[1], b2 = c[2], a1 = c[3], a2 = c[4];
+  const out = new Float64Array(x.length);
+  let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+  for (let i = 0; i < x.length; i++) {
+    const v = x[i];
+    const y = b0 * v + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+    x2 = x1; x1 = v; y2 = y1; y1 = y;
+    out[i] = y;
+  }
+  return out;
+}
+function normPeak(y, peak) {
+  if (peak === undefined) peak = 0.95;
+  let m = 0;
+  for (let i = 0; i < y.length; i++) { const a = Math.abs(y[i]); if (a > m) m = a; }
+  const g = peak / (m + 1e-12), out = new Float32Array(y.length);
+  for (let i = 0; i < y.length; i++) out[i] = y[i] * g;
+  return out;
+}
+
+function makeDrumKit(sr, seed) {
+  if (seed === undefined) seed = 1;
+  const rng = new Rng(seed + 100);
+  const timeAxis = (dur) => { const n = Math.floor(dur * sr), t = new Float64Array(n); for (let i = 0; i < n; i++) t[i] = i / sr; return t; };
+  const noise = (n) => { const x = new Float64Array(n); for (let i = 0; i < n; i++) x[i] = rng.normal(); return x; };
+  const tau2pi = 2 * Math.PI;
+
+  const kick = () => {
+    const t = timeAxis(0.5), n = t.length, f0 = 175.0, f1 = 52.0, tau = 0.022;
+    const click = filt(noise(n), biquad('hp', 1800, sr));
+    const y = new Float64Array(n);
+    for (let i = 0; i < n; i++) {
+      const ti = t[i];
+      const phase = tau2pi * (f1 * ti + (f0 - f1) * tau * (1 - Math.exp(-ti / tau)));
+      const body = Math.sin(phase) * Math.exp(-ti / 0.17) * (1 - Math.exp(-ti / 0.0007));
+      const ck = click[i] * Math.exp(-ti / 0.0025) * 0.3;
+      y[i] = Math.tanh(1.6 * (body + ck)) * clamp((0.5 - ti) / 0.05, 0, 1);
+    }
+    return normPeak(y);
+  };
+  const snare = () => {
+    const t = timeAxis(0.4), n = t.length;
+    const nz = filt(filt(noise(n), biquad('hp', 1200, sr)), biquad('lp', 9500, sr));
+    const y = new Float64Array(n);
+    for (let i = 0; i < n; i++) {
+      const ti = t[i];
+      let tone = Math.sin(tau2pi * (175 * ti + 45 * 0.03 * (1 - Math.exp(-ti / 0.03)))) * Math.exp(-ti / 0.075) * 0.7;
+      tone += Math.sin(tau2pi * 330 * ti) * Math.exp(-ti / 0.05) * 0.25;
+      const att = 1 - Math.exp(-ti / 0.0004);
+      y[i] = Math.tanh(1.3 * (tone * att + 0.85 * nz[i] * Math.exp(-ti / 0.11) * att * 0.5));
+    }
+    return normPeak(y);
+  };
+  const rim = () => {
+    const t = timeAxis(0.12), n = t.length;
+    const nz = filt(noise(n), biquad('bp', 1900, sr, 1.2));
+    const y = new Float64Array(n);
+    for (let i = 0; i < n; i++) {
+      const ti = t[i];
+      y[i] = Math.sin(tau2pi * 420 * ti) * Math.exp(-ti / 0.012) + nz[i] * Math.exp(-ti / 0.01) * 0.9;
+    }
+    return normPeak(y);
+  };
+  const brush = () => {
+    const t = timeAxis(0.3), n = t.length;
+    const nz = filt(noise(n), biquad('bp', 3500, sr, 0.5));
+    const y = new Float64Array(n);
+    for (let i = 0; i < n; i++) { const ti = t[i]; y[i] = nz[i] * (1 - Math.exp(-ti / 0.008)) * Math.exp(-ti / 0.1); }
+    return normPeak(y);
+  };
+  const hat = (tau, dur) => {
+    const t = timeAxis(dur), n = t.length;
+    const base = [205.3, 304.4, 369.6, 522.7, 540.0, 800.0];
+    const freqs = base.map((f) => f * rng.uniform(0.98, 1.02));
+    const y = new Float64Array(n);
+    for (let i = 0; i < n; i++) {
+      let metal = 0;
+      for (let k = 0; k < 6; k++) metal += Math.sign(Math.sin(tau2pi * freqs[k] * t[i]));
+      y[i] = 0.6 * (metal / 6.0) + 0.6 * rng.normal();
+    }
+    const hp = biquad('hp', 6500, sr), z = filt(filt(y, hp), hp);
+    for (let i = 0; i < n; i++) z[i] = z[i] * Math.exp(-t[i] / tau) * (1 - Math.exp(-t[i] / 0.0003));
+    return normPeak(z);
+  };
+  const crash = () => {
+    const t = timeAxis(1.6), n = t.length;
+    const y = filt(noise(n), biquad('hp', 3000, sr));
+    for (let i = 0; i < n; i++) {
+      const ti = t[i];
+      y[i] *= (0.6 * Math.exp(-ti / 0.12) + 0.4 * Math.exp(-ti / 0.6)) * (1 - Math.exp(-ti / 0.001));
+    }
+    return normPeak(y);
+  };
+  const tom = (f) => {
+    const t = timeAxis(0.35), n = t.length, f0 = 1.4 * f, tau = 0.03;
+    const y = new Float64Array(n);
+    for (let i = 0; i < n; i++) {
+      const ti = t[i];
+      const phase = tau2pi * (f * ti + (f0 - f) * tau * (1 - Math.exp(-ti / tau)));
+      y[i] = Math.sin(phase) * Math.exp(-ti / 0.16) * (1 - Math.exp(-ti / 0.0008));
+    }
+    return normPeak(y);
+  };
+  // same order of construction as the Python DrumKit
+  return {
+    kick: [kick()],
+    snare: [snare(), snare()],
+    rim: [rim()],
+    brush: [brush(), brush()],
+    hat_c: [hat(0.025, 0.10), hat(0.025, 0.10), hat(0.025, 0.10)],
+    hat_o: [hat(0.18, 0.60), hat(0.18, 0.60)],
+    crash: [crash()],
+    tom_h: [tom(230.0)],
+    tom_m: [tom(170.0)],
+    tom_l: [tom(120.0)],
+  };
+}
+
+const BASS_LO = 28, BASS_HI = 52;            // the arranger never asks for anything outside this range
+
+function renderBassNote(midi, tone, sr) {
+  const f = midiToHz(midi), n = Math.floor(1.8 * sr);
+  const nh = Math.floor(Math.max(1, Math.min(10, 0.45 * sr / f)));
+  const amps = [1.0, 0.8, 0.45, 0.28, 0.17, 0.11, 0.075, 0.05, 0.035, 0.025];
+  const tau0 = 0.75 * Math.pow(41.0 / f, 0.25);
+  const y = new Float64Array(n);
+  for (let h = 1; h <= nh; h++) {
+    const th = 2 * Math.PI * f * h / sr, cs = Math.cos(th), sn = Math.sin(th);
+    let c = 1, s = 0, e = 1, amp, rho, sus = 0;
+    if (tone === 'synth') {
+      amp = 1.0 / Math.pow(h, 0.8);
+      sus = 0.55 / h;
+      rho = Math.exp(-1 / (sr * (0.30 / (1 + 0.5 * (h - 1)))));
+    } else {
+      amp = amps[h - 1];
+      rho = Math.exp(-1 / (sr * (tau0 / (1 + 0.75 * (h - 1)))));
+    }
+    if (tone === 'synth') {
+      for (let i = 0; i < n; i++) {
+        y[i] += amp * (sus + (1 - sus) * e) * s;
+        const s2 = s * cs + c * sn; c = c * cs - s * sn; s = s2; e *= rho;
+      }
+    } else {
+      for (let i = 0; i < n; i++) {
+        y[i] += amp * e * s;
+        const s2 = s * cs + c * sn; c = c * cs - s * sn; s = s2; e *= rho;
+      }
+    }
+  }
+  for (let i = 0; i < n; i++) y[i] *= (1 - Math.exp(-i / (sr * 0.003)));
+  return normPeak(y, 0.9);
+}
+
+function makeBassBank(sr, tone) {
+  const notes = {};
+  for (let m = BASS_LO; m <= BASS_HI; m++) notes[m] = renderBassNote(m, tone || 'finger', sr);
+  return notes;
+}
+
+function makeInstruments(sr, tone, seed) {
+  return { sr: sr, drums: makeDrumKit(sr, seed), bass: makeBassBank(sr, tone) };
+}
+
+// ------------------------------------------------------------------------------------
+// mixer: sample-accurate voices, a voice may start part-way into a block
+// ------------------------------------------------------------------------------------
+class Mixer {
+  constructor() { this.voices = []; }
+  add(data, gain, delay, stop, rel, group, chokeRel) {
+    if (delay === undefined) delay = 0;
+    if (stop === undefined) stop = null;
+    if (rel === undefined) rel = 0;
+    if (group === undefined) group = null;
+    if (chokeRel === undefined) chokeRel = 0;
+    if (group !== null) this.releaseGroup(group, delay, chokeRel);
+    this.voices.push({ data: data, pos: 0, gain: gain, delay: Math.trunc(delay), stop: stop, rel: Math.trunc(rel), group: group });
+  }
+  releaseGroup(group, at, rel) {
+    const vs = this.voices;
+    let w = 0;
+    for (let i = 0; i < vs.length; i++) {
+      const v = vs[i];
+      if (v.group === group) {
+        if (v.delay > at) continue;                 // not even started yet: drop it
+        v.stop = v.pos + Math.max(0, at - v.delay);
+        v.rel = Math.max(Math.trunc(rel), 1);
+      }
+      vs[w++] = v;
+    }
+    vs.length = w;
+  }
+  render(out, B) {
+    for (let i = 0; i < B; i++) out[i] = 0;
+    const vs = this.voices;
+    let w = 0;
+    for (let k = 0; k < vs.length; k++) {
+      const v = vs[k];
+      if (v.delay >= B) { v.delay -= B; vs[w++] = v; continue; }
+      const st = v.delay;
+      v.delay = 0;
+      const pos = v.pos, data = v.data;
+      let n = Math.min(B - st, data.length - pos);
+      if (v.stop !== null) n = Math.min(n, Math.max(0, v.stop + v.rel - pos));
+      if (n > 0) {
+        const g = v.gain;
+        if (v.stop !== null && pos + n > v.stop) {
+          const end = v.stop + v.rel, rel = v.rel;
+          for (let j = 0; j < n; j++) {
+            const f = (end - (pos + j)) / rel;
+            out[st + j] += data[pos + j] * g * (f < 0 ? 0 : (f > 1 ? 1 : f));
+          }
+        } else {
+          for (let j = 0; j < n; j++) out[st + j] += data[pos + j] * g;
+        }
+        v.pos = pos + n;
+      }
+      const finished = v.pos >= data.length || (v.stop !== null && v.pos >= v.stop + v.rel);
+      if (!finished) vs[w++] = v;
+    }
+    vs.length = w;
+  }
+}
+
+// ------------------------------------------------------------------------------------
+// the band's repertoire (16 steps = one 4/4 bar in sixteenth notes, 12 for 3/4)
+// ------------------------------------------------------------------------------------
+const VEL = { x: 1.0, o: 0.72, g: 0.38 };
+
+const STYLES = {
+  rock: { bpb: 4, swing: 0.5, fills: true,
+    mid: { kick: 'x.......x.o.....', snare: '....x.......x...', hat_c: 'x.o.x.o.x.o.x.o.', bass: 'R.R.R.R.R.R.R.R.' },
+    lo: { kick: 'x.......x.......', snare: '....g.......g...', hat_c: 'x...o...x...o...', bass: 'R.......R.......' },
+    hi: { kick: 'x.....o.x.o...o.', snare: '....x..g....x..g', hat_c: 'x.o.x.o.x.o.x...', hat_o: '..............o.', bass: 'R.R.R.R.R.R.R.5.' } },
+  folk: { bpb: 4, swing: 0.5, fills: false,
+    mid: { kick: 'x.......x.......', brush: '....x.......x...', hat_c: 'g.g.g.g.g.g.g.g.', bass: 'R...5...R...5...' },
+    lo: { kick: 'x...............', brush: '....g.......g...', hat_c: 'g...g...g...g...', bass: 'R.......5.......' },
+    hi: { kick: 'x.......x.o.....', brush: '....x.......x...', hat_c: 'o.o.o.o.o.o.o.o.', bass: 'R...5...R.R.5...' } },
+  ballad: { bpb: 4, swing: 0.5, fills: false,
+    mid: { kick: 'x.....o.........', snare: '........o.......', hat_c: 'o.o.o.o.o.o.o.o.', bass: 'R.......R.......' },
+    lo: { kick: 'x...............', snare: '................', hat_c: 'g...g...g...g...', bass: 'R...............' },
+    hi: { kick: 'x.....o.....o...', snare: '........x.......', hat_c: 'o.o.o.o.o.o.o.o.', bass: 'R.......R.....5.' } },
+  shuffle: { bpb: 4, swing: 0.667, fills: true,
+    mid: { kick: 'x.......x.......', snare: '....x.......x...', hat_c: 'x.o.x.o.x.o.x.o.', bass: 'R.R.R.R.R.R.R.R.' },
+    lo: { kick: 'x.......x.......', snare: '................', hat_c: 'x...x...x...x...', bass: 'R.......R.......' },
+    hi: { kick: 'x.....o.x.....o.', snare: '....x.......x...', hat_c: 'x.o.x.o.x.o.x.o.', bass: 'R.R.3.5.6.5.3.R.' } },
+  disco: { bpb: 4, swing: 0.5, fills: true,
+    mid: { kick: 'x...x...x...x...', snare: '....x.......x...', hat_c: 'x...x...x...x...', hat_o: '..o...o...o...o.', bass: 'R.8.R.8.R.8.R.8.' },
+    lo: { kick: 'x...x...x...x...', snare: '................', hat_c: 'x...x...x...x...', hat_o: '................', bass: 'R.......R.......' },
+    hi: { kick: 'x...x...x...x...', snare: '....x.......x...', hat_c: 'x.g.x.g.x.g.x.g.', hat_o: '..o...o...o...o.', bass: 'R.8.R.8.R.8.R.8.' } },
+  waltz: { bpb: 3, swing: 0.5, fills: false,
+    mid: { kick: 'x...........', brush: '....o...o...', hat_c: 'o.o.o.o.o.o.', bass: 'R...5...5...' },
+    lo: { kick: 'x...........', brush: '............', hat_c: 'g...g...g...', bass: 'R...........' },
+    hi: { kick: 'x...........', brush: '....x...x...', hat_c: 'o.o.o.o.o.o.', bass: 'R...5...5...' } },
+};
+
+// sample name, gain, choke group
+const INSTR = {
+  kick: ['kick', 0.95, null], snare: ['snare', 0.80, null], rim: ['rim', 0.60, null],
+  brush: ['brush', 0.70, null], hat_c: ['hat_c', 0.40, 'hat'], hat_o: ['hat_o', 0.40, 'hat'],
+  crash: ['crash', 0.50, null], tom_h: ['tom_h', 0.80, null], tom_m: ['tom_m', 0.80, null],
+  tom_l: ['tom_l', 0.85, null],
+};
+const BASS_GAIN = 0.85;
+const FILL = { 12: [['snare', 0.55]], 13: [['snare', 0.65]], 14: [['tom_m', 0.85]], 15: [['tom_l', 1.0]] };
+
+(function checkStyles() {
+  for (const name of Object.keys(STYLES)) {
+    const st = STYLES[name], n = 4 * st.bpb;
+    for (const tier of ['mid', 'lo', 'hi']) {
+      for (const inst of Object.keys(st[tier])) {
+        if (st[tier][inst].length !== n) throw new Error('bad pattern ' + name + ' ' + tier + ' ' + inst);
+      }
+    }
+  }
+})();
+
+const BASS_IV = { R: 0, '5': 7, '8': 12, '7': 10, '6': 9 };
+function bassMidi(rootPc, quality, degree) {
+  const base = 28 + mod(rootPc - 4, 12);                        // E1 = 28 .. D#2 = 39
+  let iv;
+  if (degree === '3') iv = (quality === 'min' || quality === 'm7') ? 3 : (quality === 'pow' ? 7 : 4);
+  else iv = BASS_IV[degree];
+  let m = base + iv;
+  while (m > 52) m -= 12;
+  return m;
+}
+
+// ------------------------------------------------------------------------------------
+// listening: onsets
+// ------------------------------------------------------------------------------------
+class FrontEnd {
+  constructor(sr) {
+    this.sr = sr;
+    this.GAMMA = 1000.0;
+    this.LAG = 4;
+    this.hop = 1 << Math.max(6, pyround(Math.log2(sr * 0.0058)));
+    const win = this.win = this.hop * 4;
+    this.window = new Float64Array(win);
+    let sw = 0;
+    for (let i = 0; i < win; i++) { this.window[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / win); sw += this.window[i]; }
+    this.scale = 2.0 / sw;
+    const nbins = (win >> 1) + 1, binw = sr / win, fmax = Math.min(12000.0, 0.45 * sr);
+    const edges = [];
+    for (let i = 0; i <= 24; i++) edges.push(pyround(60.0 * Math.pow(fmax / 60.0, i / 24) / binw));
+    for (let i = 1; i < edges.length; i++) if (edges[i] <= edges[i - 1]) edges[i] = edges[i - 1] + 1;
+    if (!(edges[edges.length - 1] < nbins)) throw new Error('sample rate too low for the front end');
+    this.edges = edges;
+    const nb = this.nb = edges.length - 1;
+    let nlow = 0;
+    for (let b = 0; b < nb; b++) {
+      const centre = Math.sqrt(edges[b] * Math.max(edges[b + 1], 1)) * binw;
+      if (centre < 350.0) nlow++;
+    }
+    this.nlow = Math.max(1, nlow);
+    this.rfft = getRFFT(win);
+    this.frameBuf = new Float64Array(win);
+    this.re = new Float64Array(nbins);
+    this.im = new Float64Array(nbins);
+    this.mag = new Float64Array(nbins);
+    this.past = [];                                 // LAG spectra, oldest first (ring)
+    for (let i = 0; i < this.LAG; i++) this.past.push(new Float64Array(nb));
+    this.pastCount = 0;
+    this.pastHead = 0;                              // slot that the next spectrum will be written to
+    this.L = new Float64Array(nb);
+    this.ringMask = 4095;
+    this.ring = new Float32Array(4096);
+    this.n = 0;                                     // samples received
+    this.nextStart = 0;                             // start of the next frame to analyse
+    this.cap = 8;
+    this.fStart = new Float64Array(this.cap);
+    this.fFlux = new Float64Array(this.cap);
+    this.fLow = new Float64Array(this.cap);
+    this.fRms = new Float64Array(this.cap);
+    this.nf = 0;
+  }
+
+  push(x, B) {                                      // fills fStart/fFlux/fLow/fRms, count in nf
+    this.nf = 0;
+    const win = this.win, hop = this.hop, ring = this.ring, mask = this.ringMask;
+    for (let i = 0; i < B; i++) {
+      ring[this.n & mask] = x[i];
+      this.n++;
+      if (this.n - win === this.nextStart) {
+        this._frame(this.nextStart);
+        this.nextStart += hop;
+      }
+    }
+  }
+
+  _frame(start) {
+    if (this.nf >= this.cap) {
+      const c2 = this.cap * 2;
+      for (const k of ['fStart', 'fFlux', 'fLow', 'fRms']) { const a = new Float64Array(c2); a.set(this[k]); this[k] = a; }
+      this.cap = c2;
+    }
+    const win = this.win, mask = this.ringMask, ring = this.ring, w = this.window, fb = this.frameBuf;
+    let e2 = 0;
+    for (let j = 0; j < win; j++) {
+      const v = ring[(start + j) & mask];
+      e2 += v * v;
+      fb[j] = v * w[j];
+    }
+    const rms = Math.sqrt(e2 / win);
+    this.rfft.forward(fb, this.re, this.im);
+    const nbins = (win >> 1) + 1, mag = this.mag, re = this.re, im = this.im, sc = this.scale;
+    for (let k = 0; k < nbins; k++) mag[k] = Math.sqrt(re[k] * re[k] + im[k] * im[k]) * sc;
+    const nb = this.nb, edges = this.edges, L = this.L;
+    for (let b = 0; b < nb; b++) {
+      let s = 0;
+      const e0 = edges[b], e1 = edges[b + 1];
+      for (let k = e0; k < e1; k++) s += mag[k];
+      L[b] = Math.log1p(this.GAMMA * (s / (e1 - e0)));
+    }
+    // reference: the spectrum LAG frames earlier (the oldest one stored), widened by +-1 band (vibrato)
+    let pm;
+    if (this.pastCount === 0) pm = L;
+    else pm = this.past[this.pastCount < this.LAG ? 0 : this.pastHead];
+    let flux = 0, low = 0;
+    for (let b = 0; b < nb; b++) {
+      const a = pm[(b + nb - 1) % nb], c = pm[(b + 1) % nb];
+      let ref = pm[b];
+      if (a > ref) ref = a;
+      if (c > ref) ref = c;
+      const d = L[b] - ref;
+      if (d > 0) { flux += d; if (b < this.nlow) low += d; }
+    }
+    this.past[this.pastHead].set(L);
+    this.pastHead = (this.pastHead + 1) % this.LAG;
+    if (this.pastCount < this.LAG) this.pastCount++;
+    const f = this.nf++;
+    this.fStart[f] = start; this.fFlux[f] = flux; this.fLow[f] = low; this.fRms[f] = rms;
+  }
+}
+
+// ------------------------------------------------------------------------------------
+// listening: tempo and beat phase
+// ------------------------------------------------------------------------------------
+function percentileSorted(s, L, q) {                // numpy 'linear' percentile of an already sorted view
+  const pos = (L - 1) * q / 100.0, lo = Math.floor(pos), hi = Math.min(lo + 1, L - 1), fr = pos - lo;
+  return s[lo] + fr * (s[hi] - s[lo]);
+}
+function convolveSame(src, L, kern, K, dst) {       // zero-padded 'same' convolution with an odd symmetric kernel
+  const h = (K - 1) >> 1;
+  for (let i = 0; i < L; i++) {
+    let s = 0;
+    const j0 = Math.max(0, h - i), j1 = Math.min(K, L - i + h);
+    for (let j = j0; j < j1; j++) s += kern[j] * src[i - h + j];
+    dst[i] = s;
+  }
+}
+
+class BeatTracker {
+  constructor(fps, bpmMin, bpmMax) {
+    this.fps = fps;
+    const W = this.W = Math.trunc(8.0 * fps);
+    this.osf = new Float64Array(W);
+    this.count = 0;                                 // valid frames since reset
+    this.total = 0;                                 // frames ever pushed (global frame index = total-1)
+    this.bpmMin = bpmMin; this.bpmMax = bpmMax;
+    this.o = new Float64Array(W); this.o2 = new Float64Array(W); this.x = new Float64Array(W);
+    this.srt = new Float64Array(W);
+    this.est = new Float64Array(3);
+    let nfmax = 1;
+    while (nfmax < 2 * W) nfmax <<= 1;
+    this.acIn = new Float64Array(nfmax);
+    this.acRe = new Float64Array((nfmax >> 1) + 1);
+    this.acIm = new Float64Array((nfmax >> 1) + 1);
+    this.pwR = new Float64Array(nfmax);
+    this.pwI = new Float64Array(nfmax);
+    this.ac = new Float64Array(W);
+    // smoothing kernels do not depend on the data
+    const sg = OSF_SMOOTH_S * fps;
+    const half = Math.trunc(3 * sg) + 1;
+    this.gk = new Float64Array(2 * half + 1);
+    let gs = 0;
+    for (let i = -half; i <= half; i++) { const v = Math.exp(-0.5 * Math.pow(i / sg, 2)); this.gk[i + half] = v; gs += v; }
+    for (let i = 0; i < this.gk.length; i++) this.gk[i] /= gs;
+    this.pk = new Float64Array(9);
+    let ps = 0;
+    for (let i = -4; i <= 4; i++) { const v = Math.exp(-0.5 * Math.pow(i / 1.5, 2)); this.pk[i + 4] = v; ps += v; }
+    for (let i = 0; i < 9; i++) this.pk[i] /= ps;
+    this.sc = new Float64Array(Math.ceil(fps * 60.0 / Math.max(bpmMin, 1)) + 8);
+  }
+
+  push(v) {
+    this.osf.copyWithin(0, 1);
+    this.osf[this.W - 1] = v;
+    this.count++;
+    this.total++;
+  }
+
+  reset() {
+    this.osf.fill(0);
+    this.count = 0;
+  }
+
+  // -> shared Float64Array [lag (frames), confidence, support for curLag] or null
+  estimate(curLag) {
+    const fps = this.fps, W = this.W;
+    const L = Math.min(this.count, W);
+    if (L < Math.trunc(3.5 * fps)) return null;
+    const o = this.osf.subarray(W - L), a = this.o, b = this.o2, x = this.x;
+    convolveSame(o, L, this.gk, this.gk.length, a);                      // smooth the onset curve
+    const k = Math.max(3, Math.trunc(0.4 * fps)) | 1, hk = (k - 1) >> 1;
+    // moving average, zero padded at both ends ('same' convolution with a box)
+    const cs = b;                                                         // prefix sums in b (L+1 needed, use x as temp)
+    let acc = 0;
+    for (let i = 0; i < L; i++) { acc += a[i]; x[i] = acc; }              // x = running sum
+    for (let i = 0; i < L; i++) {
+      const hiI = Math.min(L - 1, i + hk), loI = i - hk - 1;
+      const s = x[hiI] - (loI >= 0 ? x[loI] : 0);
+      cs[i] = s / k;
+    }
+    for (let i = 0; i < L; i++) { const v = a[i] - cs[i]; x[i] = v > 0 ? v : 0; }
+    // clip at the 98th percentile
+    const srt = this.srt.subarray(0, L);
+    srt.set(x.subarray(0, L));
+    srt.sort();
+    const clipv = percentileSorted(srt, L, 98.0);
+    for (let i = 0; i < L; i++) if (x[i] > clipv) x[i] = clipv;
+    let mean = 0;
+    for (let i = 0; i < L; i++) mean += x[i];
+    mean /= L;
+    let va = 0;
+    for (let i = 0; i < L; i++) { const d = x[i] - mean; va += d * d; }
+    const sd = Math.sqrt(va / L);
+    if (sd < 1e-9) return null;
+    let nfft = 1;
+    while (nfft < 2 * L) nfft <<= 1;
+    const acIn = this.acIn.subarray(0, nfft);
+    for (let i = 0; i < L; i++) acIn[i] = x[i] / sd;
+    for (let i = L; i < nfft; i++) acIn[i] = 0;
+    const rf = getRFFT(nfft), hn = nfft >> 1;
+    rf.forward(acIn, this.acRe, this.acIm);
+    const pr = this.pwR.subarray(0, nfft), pi = this.pwI.subarray(0, nfft);
+    for (let i = 0; i <= hn; i++) { const p = this.acRe[i] * this.acRe[i] + this.acIm[i] * this.acIm[i]; pr[i] = p; if (i > 0 && i < hn) pr[nfft - i] = p; }
+    pi.fill(0);
+    getFFT(nfft).transform(pr, pi);                                       // power spectrum is real and even: forward == inverse
+    const ac = this.ac, ac0 = pr[0] / nfft;
+    for (let i = 0; i < L; i++) ac[i] = (pr[i] / nfft) / (ac0 + 1e-12);
+    const lo = Math.max(2, Math.trunc(fps * 60.0 / this.bpmMax));
+    const hi = Math.min(Math.trunc(fps * 60.0 / this.bpmMin), Math.floor((L - 1) / 4));
+    if (hi - lo < 4) return null;
+    const nl = hi - lo + 1;
+    let bestJ = 0, bestV = -Infinity;
+    const E = this._E || (this._E = new Float64Array(this.sc.length + 8));
+    for (let j = 0; j < nl; j++) {
+      const l = lo + j;
+      const e = (ac[l] + 0.15 * ac[2 * l] + 0.6 * ac[4 * l]) / 1.75;
+      E[j] = e;
+      const bpm = 60.0 * fps / l;
+      const prior = Math.exp(-0.5 * Math.pow(Math.log2(bpm / PRIOR_CENTER) / PRIOR_SIGMA, 2)) * Math.pow(bpm / PRIOR_CENTER, -PRIOR_SLOW);
+      const v = e * prior;
+      if (v > bestV) { bestV = v; bestJ = j; }
+    }
+    let lag = lo + bestJ;
+    if (bestJ > 0 && bestJ < nl - 1) {
+      const A = E[bestJ - 1], Bv = E[bestJ], C = E[bestJ + 1], den = A - 2 * Bv + C;
+      if (Math.abs(den) > 1e-12) lag += clamp(0.5 * (A - C) / den, -1.0, 1.0);
+    }
+    let eCur = 0.0;
+    if (curLag) {                                   // np.interp: linear, clamped at the ends
+      if (curLag <= lo) eCur = E[0];
+      else if (curLag >= hi) eCur = E[nl - 1];
+      else { const j = Math.floor(curLag) - lo, fr = curLag - Math.floor(curLag); eCur = E[j] + fr * (E[j + 1] - E[j]); }
+    }
+    const est = this.est;
+    est[0] = lag; est[1] = E[bestJ]; est[2] = eCur;
+    return est;
+  }
+
+  // global frame index (float) of a recent beat, for beat period P (frames), or null
+  bestPhase(P) {
+    const W = this.W;
+    const L = Math.min(this.count, W);
+    if (P < 4 || L < 2 * P + 2) return null;
+    const o = this.osf.subarray(W - L), a = this.o, b = this.o2;
+    if (PHASE_CLIP < 100.0) {
+      const srt = this.srt.subarray(0, L);
+      srt.set(o);
+      srt.sort();
+      const clipv = percentileSorted(srt, L, PHASE_CLIP);
+      for (let i = 0; i < L; i++) a[i] = o[i] > clipv ? clipv : o[i];
+    } else {
+      for (let i = 0; i < L; i++) a[i] = o[i];
+    }
+    convolveSame(a, L, this.pk, 9, b);
+    const K = Math.trunc(Math.min(12, Math.floor((L - 1) / P)));
+    const nphi = Math.trunc(Math.ceil(P));
+    const sc = this.sc.length >= nphi ? this.sc : (this.sc = new Float64Array(nphi + 8));
+    const interp = (xv) => {                        // np.interp on the grid 0..L-1
+      if (xv <= 0) return b[0];
+      if (xv >= L - 1) return b[L - 1];
+      const i0 = Math.floor(xv), fr = xv - i0;
+      return b[i0] + fr * (b[i0 + 1] - b[i0]);
+    };
+    for (let phi = 0; phi < nphi; phi++) {
+      let s1 = 0, s2 = 0, w = 1.0;
+      for (let k = 0; k < K; k++) {
+        const base = (L - 1) - phi - k * P, half = base - 0.5 * P;
+        if (base >= 0) s1 += interp(base) * w;
+        if (half >= 0) s2 += interp(half) * w;
+        w *= 0.9;
+      }
+      sc[phi] = s1 - 0.3 * s2;
+    }
+    let j = 0;
+    for (let i = 1; i < nphi; i++) if (sc[i] > sc[j]) j = i;
+    if (sc[j] <= 0) return null;
+    const A = sc[(j - 1 + nphi) % nphi], Bv = sc[j], C = sc[(j + 1) % nphi], den = A - 2 * Bv + C;
+    const d = Math.abs(den) > 1e-12 ? clamp(0.5 * (A - C) / den, -1.0, 1.0) : 0.0;
+    return this.total - 1 - (j + d);
+  }
+}
+
+class Clock {                                       // beat k happens at t_ref + (k - n_ref) * period (in samples)
+  constructor() { this.valid = false; this.period = 0.0; this.t_ref = 0.0; this.n_ref = 0; }
+  set(tRef, period, nRef) {
+    this.t_ref = +tRef; this.period = +period; this.n_ref = Math.trunc(nRef || 0); this.valid = true;
+  }
+  beatTime(b) { return this.t_ref + (b - this.n_ref) * this.period; }
+  beatAt(t) { return this.n_ref + (t - this.t_ref) / this.period; }
+  reanchor(now) {
+    const k = Math.ceil((now - this.t_ref) / this.period);
+    this.t_ref += k * this.period;
+    this.n_ref += k;
+  }
+}
+
+// ------------------------------------------------------------------------------------
+// listening: chords.  A chord is an index root*5 + quality.
+// ------------------------------------------------------------------------------------
+const QUALITIES = [['maj', { 0: 1.0, 4: 0.85, 7: 0.9 }], ['min', { 0: 1.0, 3: 0.85, 7: 0.9 }],
+  ['pow', { 0: 1.0, 7: 0.8 }], ['7', { 0: 1.0, 4: 0.8, 7: 0.8, 10: 0.6 }], ['m7', { 0: 1.0, 3: 0.8, 7: 0.8, 10: 0.6 }]];
+const QUAL_PRIOR = { maj: 1.0, min: 1.0, pow: 0.93, '7': 0.95, m7: 0.95 };
+const NQ = QUALITIES.length, NCH = 12 * NQ;
+const CH_ROOT = new Int32Array(NCH), CH_Q = [];
+for (let r = 0; r < 12; r++) for (let q = 0; q < NQ; q++) { CH_ROOT[r * NQ + q] = r; CH_Q.push(QUALITIES[q][0]); }
+const W_BASS = 0.12;
+const CH_A_ONSET = 0.15, CH_A_PERIODIC = 0.7, CH_MARGIN_NOW = 0.08, CH_MARGIN_TWICE = 0.02, CH_INSTANT = 0.12;
+
+class ChordTracker {
+  constructor(sr) {
+    this.sr = sr;
+    this.N = 1 << Math.ceil(Math.log2(0.085 * sr));
+    this.nfft = this.N * 2;
+    this.window = new Float64Array(this.N);
+    for (let i = 0; i < this.N; i++) this.window[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / this.N);
+    this.binw = sr / this.nfft;
+    this.k0 = Math.ceil(75.0 / this.binw);
+    this.k1 = Math.trunc(2600.0 / this.binw);
+    this.T = new Float64Array(NCH * 12);
+    this.prior = new Float64Array(NCH);
+    for (let r = 0; r < 12; r++) {
+      for (let q = 0; q < NQ; q++) {
+        const row = new Float64Array(12);
+        const tpl = QUALITIES[q][1];
+        for (const iv of Object.keys(tpl)) row[(r + (+iv)) % 12] = tpl[iv];
+        let nrm = 0;
+        for (let i = 0; i < 12; i++) nrm += row[i] * row[i];
+        nrm = Math.sqrt(nrm);
+        for (let i = 0; i < 12; i++) this.T[(r * NQ + q) * 12 + i] = row[i] / nrm;
+        this.prior[r * NQ + q] = QUAL_PRIOR[QUALITIES[q][0]];
+      }
+    }
+    this.vocab = new Float64Array(NCH);
+    this.run = new Float64Array(12);
+    this.run_low = new Float64Array(12);
+    this.cur = -1;
+    this.pending = -1;
+    this.rfft = getRFFT(this.nfft);
+    this.buf = new Float64Array(this.nfft);
+    this.re = new Float64Array((this.nfft >> 1) + 1);
+    this.im = new Float64Array((this.nfft >> 1) + 1);
+    this.m = new Float64Array(this.k1 - this.k0 + 1);
+    this.pc = new Float64Array(12); this.pcl = new Float64Array(12);
+    this.pcn = new Float64Array(12); this.pln = new Float64Array(12);
+    this.rn = new Float64Array(12);
+    this.s1 = new Float64Array(NCH); this.sc = new Float64Array(NCH);
+  }
+
+  // fills pc / pcl; false when there is nothing to hear
+  _chroma(seg) {
+    const N = this.N, buf = this.buf, win = this.window, pc = this.pc, pcl = this.pcl;
+    pc.fill(0); pcl.fill(0);
+    for (let i = 0; i < N; i++) buf[i] = seg[i] * win[i];
+    for (let i = N; i < this.nfft; i++) buf[i] = 0;
+    this.rfft.forward(buf, this.re, this.im);
+    const k0 = this.k0, M = this.k1 - k0 + 1, m = this.m;
+    let mx = 0;
+    for (let i = 0; i < M; i++) {
+      const v = Math.sqrt(this.re[k0 + i] * this.re[k0 + i] + this.im[k0 + i] * this.im[k0 + i]);
+      m[i] = v;
+      if (v > mx) mx = v;
+    }
+    if (mx < 1e-6) return false;
+    const thr = 0.04 * mx;
+    let any = false;
+    for (let p = 1; p < M - 1; p++) {
+      const c = m[p];
+      if (!(c > m[p - 1] && c >= m[p + 1] && c > thr)) continue;
+      const a = Math.log(m[p - 1] + 1e-12), b = Math.log(c + 1e-12), d = Math.log(m[p + 1] + 1e-12);
+      const den = a - 2 * b + d;
+      const delta = clamp(Math.abs(den) > 1e-9 ? 0.5 * (a - d) / den : 0.0, -0.5, 0.5);
+      const f = (k0 + p + delta) * this.binw;
+      const pcf = 12.0 * Math.log2(f / 440.0) + 9.0, pcr = pyround(pcf);
+      const z = (pcf - pcr) / 0.30;
+      const w = Math.exp(-0.5 * z * z) * Math.pow(c, 0.7) / (1.0 + (f / 1500.0) * (f / 1500.0));
+      const pcs = mod(pcr, 12);
+      pc[pcs] += w;
+      if (f < 330.0) pcl[pcs] += w;
+      any = true;
+    }
+    return any;
+  }
+
+  // kind: 0 = a strum was just heard, 1 = periodic look.  Returns true when the chord *root* changed.
+  update(seg, kind) {
+    if (!this._chroma(seg)) return false;
+    const pc = this.pc, pcl = this.pcl, pcn = this.pcn, pln = this.pln;
+    let s = 0, n1 = 0, n2 = 0;
+    for (let i = 0; i < 12; i++) { s += pc[i]; n1 += pc[i] * pc[i]; n2 += pcl[i] * pcl[i]; }
+    if (s <= 1e-9) return false;
+    n1 = Math.sqrt(n1); n2 = Math.sqrt(n2) + 1e-9;
+    for (let i = 0; i < 12; i++) { pcn[i] = pc[i] / n1; pln[i] = pcl[i] / n2; }
+    let vmax = 0;
+    for (let i = 0; i < NCH; i++) if (this.vocab[i] > vmax) vmax = this.vocab[i];
+    const vdiv = 0.04 / (vmax + 1.0), T = this.T, prior = this.prior, vocab = this.vocab;
+    if (kind === 0 && this.cur !== -1) {              // the strum on its own: does it clearly say "another chord"?
+      const s1 = this.s1;
+      let j = 0, jv = -Infinity;
+      for (let c = 0; c < NCH; c++) {
+        let dot = 0;
+        for (let i = 0; i < 12; i++) dot += T[c * 12 + i] * pcn[i];
+        const v = dot * prior[c] + W_BASS * pln[CH_ROOT[c]] + vocab[c] * vdiv;
+        s1[c] = v;
+        if (v > jv) { jv = v; j = c; }
+      }
+      if (j !== this.cur && s1[j] - s1[this.cur] > CH_INSTANT) {
+        this.run.set(pcn); this.run_low.set(pln);
+        return this._set(j);
+      }
+    }
+    const a = kind === 0 ? CH_A_ONSET : CH_A_PERIODIC, run = this.run, rl = this.run_low, rn = this.rn;
+    let nr = 0;
+    for (let i = 0; i < 12; i++) {
+      run[i] = a * run[i] + (1 - a) * pcn[i];
+      rl[i] = a * rl[i] + (1 - a) * pln[i];
+      nr += run[i] * run[i];
+    }
+    nr = Math.sqrt(nr) + 1e-9;
+    for (let i = 0; i < 12; i++) rn[i] = run[i] / nr;
+    const sc = this.sc;
+    let bi = 0, bv = -Infinity;
+    for (let c = 0; c < NCH; c++) {
+      let dot = 0;
+      for (let i = 0; i < 12; i++) dot += T[c * 12 + i] * rn[i];
+      const v = dot * prior[c] + W_BASS * rl[CH_ROOT[c]] + vocab[c] * vdiv;
+      sc[c] = v;
+      if (v > bv) { bv = v; bi = c; }
+    }
+    if (this.cur === -1) return this._set(bi);
+    if (bi === this.cur) { this.pending = -1; return false; }
+    const margin = sc[bi] - sc[this.cur];
+    if (margin > CH_MARGIN_NOW || (margin > CH_MARGIN_TWICE && this.pending === bi)) return this._set(bi);
+    this.pending = bi;
+    return false;
+  }
+
+  _set(i) {
+    const old = this.cur;
+    this.cur = i;
+    this.pending = -1;
+    this.vocab[i] += 1;
+    return old === -1 || CH_ROOT[old] !== CH_ROOT[i];
+  }
+}
+
+class ChordMemory {                                 // the chord on each beat; predicts a change one loop on
+  constructor(bpb) { this.bpb = bpb; this.d = new Map(); }
+  clear() { this.d.clear(); }
+  record(b, chord) {
+    const d = this.d;
+    d.set(b, chord);
+    if (d.size > 400) for (const k of Array.from(d.keys())) if (k < b - 300) d.delete(k);
+  }
+  predict(b) {
+    const d = this.d, mults = [2, 4, 8];
+    for (let mi = 0; mi < 3; mi++) {
+      const L = this.bpb * mults[mi], K = Math.min(L, 16);
+      let ok = true, same = 0;
+      const roots = new Set();
+      for (let j = b - K; j < b; j++) {
+        const p = d.get(j), q = d.get(j - L);
+        if (p === undefined || q === undefined) { ok = false; break; }
+        if (CH_ROOT[p] === CH_ROOT[q]) same++;
+        roots.add(CH_ROOT[q]);
+      }
+      if (!ok) continue;
+      if (same < 0.9 * K) continue;
+      if (roots.size < 2) continue;                 // nothing changes in that stretch: nothing to learn
+      const then = d.get(b - L), before = d.get(b - L - 1), after = d.get(b - L + 1);
+      if (then === undefined || before === undefined || after === undefined ||
+          CH_ROOT[then] === CH_ROOT[before] || CH_ROOT[after] !== CH_ROOT[then]) return null;
+      const two = d.get(b - 2 * L);
+      if (two !== undefined && CH_ROOT[two] !== CH_ROOT[then]) return null;
+      return then;
+    }
+    return null;
+  }
+}
+
+// ------------------------------------------------------------------------------------
+// the band
+// ------------------------------------------------------------------------------------
+class Engine {
+  // kit = makeInstruments(sr, tone, seed)  (or the same thing received from another thread)
+  constructor(cfg, kit) {
+    this.cfg = cfg;
+    const sr = this.sr = Math.trunc(cfg.sr);
+    this.kit = kit;
+    this.rr = {};
+    this.mixer = new Mixer();
+    this.front = new FrontEnd(sr);
+    this.hop = this.front.hop;
+    this.fps = sr / this.hop;
+    this.tracker = new BeatTracker(this.fps, cfg.bpm_min, cfg.bpm_max);
+    this.chords = new ChordTracker(sr);
+    this.clock = new Clock();
+    this.rng = new Rng(cfg.seed);
+    const need = this.chords.N + 4 * Math.max(cfg.blocksize, 1024);
+    this.H = 1 << Math.ceil(Math.log2(need));
+    this.hmask = this.H - 1;
+    this.hist = new Float32Array(this.H);
+    this.seg = new Float64Array(this.chords.N);
+    this.n = 0;
+    this.n_block0 = 0;
+    this.L = Math.trunc(cfg.latency_ms * 1e-3 * sr);
+    this.drums_on = cfg.drums; this.bass_on = cfg.bass;
+    this.muted = false;
+    this.cmds = [];
+    this.log = []; this.trace = [];
+    this.next_trace = 0;
+    // onsets / levels
+    this.qs = new Float64Array(6); this.qf = new Float64Array(6); this.ql = new Float64Array(6); this.qn = 0;
+    this.flux_ma = 0.0;
+    this.a_ma = 1.0 - Math.exp(-this.hop / (0.7 * sr));
+    this.a_loud = 1.0 - Math.exp(-this.hop / (0.8 * sr));
+    this.a_ref = 1.0 - Math.exp(-this.hop / (15.0 * sr));
+    this.min_gap = Math.trunc(0.06 * sr);
+    this.last_pick_start = -1e12;
+    this.onsets = [];
+    this.last_onset = null;
+    this.first_onset = null;                        // first strum after a silence (probably the "1")
+    this.seq_start = null;                          // when the current stretch of music began
+    this.level_init = false;
+    this.ph = this.loud = this.ref = -90.0;
+    this.in_db = -90.0;
+    this.intensity = 0.5;
+    // chords
+    this.eval_queue = [];
+    this.next_periodic = 0;
+    this.memory = null;
+    this.last_bass = null;
+    // tempo / clock
+    this.next_tempo = 0;
+    this.cands = []; this.tempo_cand = [];
+    this.mismatch = 0;
+    this.low_since = null;
+    this.loose_t = 0.0;
+    this.switches = [];
+    this.active = false;
+    this.next_step = 0;
+    this.next_rec = 0;
+    this.down_idx = 0;
+    this.user_down = false;
+    this.tier = 'mid';
+    this.cur_fill = this.prev_fill = this.cur_crash = false;
+    this.cur_bar_step = 0;
+    this.style = null;
+    this.out_peak = 0;
+    this.setStyle(cfg.style);
+  }
+
+  // ----- configuration -----------------------------------------------------------------
+  setStyle(name) {
+    const st = STYLES[name];
+    this.style = name;
+    this.bpb = st.bpb;
+    this.swing = this.cfg.swing === null ? st.swing : this.cfg.swing;
+    this.nsteps = 4 * this.bpb;
+    this.pat = {};
+    for (const tier of ['lo', 'mid', 'hi']) {
+      let d = Object.assign({}, st.mid, st[tier]);
+      if (tier === 'lo') {                          // 'lo' replaces, not extends
+        const keep = {};
+        for (const k of Object.keys(d)) if (k in st.lo || k === 'bass') keep[k] = d[k];
+        d = keep;
+      }
+      const drums = [];
+      for (let i = 0; i < this.nsteps; i++) drums.push([]);
+      for (const inst of Object.keys(d)) {
+        if (inst === 'bass') continue;
+        const pat = d[inst];
+        for (let i = 0; i < pat.length; i++) if (VEL[pat[i]] !== undefined) drums[i].push([inst, VEL[pat[i]]]);
+      }
+      const bass = new Array(this.nsteps).fill(null);
+      const steps = [];
+      for (let i = 0; i < d.bass.length; i++) if (d.bass[i] !== '.') steps.push(i);
+      for (let k = 0; k < steps.length; k++) {
+        const i = steps[k], nxt = steps[(k + 1) % steps.length];
+        bass[i] = [d.bass[i], mod(nxt - i, this.nsteps) || this.nsteps];
+      }
+      this.pat[tier] = [drums, bass];
+    }
+    this.use_fills = st.fills && this.cfg.fills;
+    this.ev = new Float64Array(this.bpb);
+    this.down_idx = 0;
+    this.memory = new ChordMemory(this.bpb);
+  }
+
+  command() { this.cmds.push(Array.prototype.slice.call(arguments)); }
+
+  _setParam(key, v) {
+    const cfg = this.cfg;
+    switch (key) {
+      case 'level': cfg.level = v; break;
+      case 'drum_level': cfg.drum_level = v; break;
+      case 'bass_level': cfg.bass_level = v; break;
+      case 'gate_db': cfg.gate_db = v; break;
+      case 'latency_ms': cfg.latency_ms = v; this.L = Math.trunc(v * 1e-3 * this.sr); break;
+      case 'humanize_ms': cfg.humanize_ms = v; break;
+      case 'swing': cfg.swing = v; this.swing = v === null ? STYLES[this.style].swing : v; break;
+      case 'fills': cfg.fills = v; this.use_fills = STYLES[this.style].fills && v; break;
+      case 'predict': cfg.predict = v; break;
+      case 'stop_beats': cfg.stop_beats = v; break;
+      case 'drums_on': this.drums_on = !!v; break;
+      case 'bass_on': this.bass_on = !!v; break;
+      case 'muted': this.muted = !!v; break;
+      default: break;
+    }
+  }
+
+  _runCommands() {
+    while (this.cmds.length) {
+      const c = this.cmds.shift(), k = c[0], clk = this.clock;
+      if (k === 'downbeat' && clk.valid) {
+        const b = pyround(clk.beatAt(this.n - 0.1 * this.sr));
+        this.down_idx = mod(b, this.bpb);
+        this.user_down = true;
+        this.ev.fill(0.0);
+        this.ev[this.down_idx] = 100.0;
+      } else if (k === 'half' && clk.valid) {
+        clk.t_ref += clk.period / 2.0;
+      } else if (k === 'style' && STYLES[c[1]]) {
+        this.setStyle(c[1]);
+      } else if (k === 'next_style') {
+        const names = Object.keys(STYLES);
+        this.setStyle(names[(names.indexOf(this.style) + 1) % names.length]);
+      } else if (k === 'mute') { this.muted = !this.muted;
+      } else if (k === 'drums') { this.drums_on = !this.drums_on;
+      } else if (k === 'bass') { this.bass_on = !this.bass_on;
+      } else if (k === 'level') {
+        this.cfg.level = Math.min(1.5, Math.max(0.1, this.cfg.level + c[1]));
+      } else if (k === 'bpm') {
+        this.cfg.bpm = c[1];
+        if (c[1] && clk.valid) { clk.reanchor(this.n); clk.period = 60.0 * this.sr / c[1]; }
+      } else if (k === 'set') {
+        this._setParam(c[1], c[2]);
+      }
+    }
+  }
+
+  status() {
+    const clk = this.clock;
+    let beat = null;
+    if (clk.valid && this.active) beat = mod(Math.floor(clk.beatAt(this.n)) - this.down_idx, this.bpb) + 1;
+    const ch = this.chords.cur;
+    let name = null;
+    if (ch !== -1) name = NOTE_NAMES[CH_ROOT[ch]] + ((CH_Q[ch] === 'min' || CH_Q[ch] === 'm7') ? 'm' : '');
+    return {
+      bpm: clk.valid ? 60.0 * this.sr / clk.period : null, locked: clk.valid, active: this.active,
+      muted: this.muted, beat: beat, bpb: this.bpb, in_db: this.in_db, intensity: this.intensity,
+      style: this.style, chord: name, n: this.n,
+    };
+  }
+
+  // ----- the main entry point ---------------------------------------------------------------
+  // x: B samples of guitar.  out: receives B samples of band (already scaled and soft-clipped).
+  process(x, B, out) {
+    const n0 = this.n;
+    this.n_block0 = n0;
+    this._runCommands();
+    const hist = this.hist, hm = this.hmask;
+    for (let i = 0; i < B; i++) hist[(n0 + i) & hm] = x[i];
+    this.n = n0 + B;
+    const fe = this.front;
+    fe.push(x, B);
+    for (let f = 0; f < fe.nf; f++) this._onFrame(fe.fStart[f], fe.fFlux[f], fe.fLow[f], fe.fRms[f]);
+    this._runChordEvals();
+    this._maybeUpdateTempo();
+    this._updateActivity(n0);
+    this._recordBeats();
+    this._schedule(n0, B);
+    this.mixer.render(out, B);
+    const lvl = this.cfg.level, knee = 0.8;
+    for (let i = 0; i < B; i++) {
+      let v = out[i] * lvl;
+      const a = v < 0 ? -v : v;
+      if (a > knee) { const s = knee + (1 - knee) * Math.tanh((a - knee) / (1 - knee)); v = v < 0 ? -s : s; }
+      out[i] = v;
+    }
+    if (this.cfg.record && this.n >= this.next_trace) {
+      this.next_trace = this.n + (this.sr >> 2);
+      const s = this.status();
+      this.trace.push([this.n, s.bpm, s.locked, s.active, s.chord, s.intensity]);
+    }
+  }
+
+  // ----- frames, onsets, levels ----------------------------------------------------------------
+  _onFrame(start, flux, low, rms) {
+    const sr = this.sr, hop = this.hop;
+    const db = 20.0 * Math.log10(rms + 1e-9);
+    this.in_db = Math.max(db, this.in_db - 40.0 * hop / sr);
+    if (db < this.cfg.gate_db) {
+      flux = low = 0.0;
+    } else {
+      if (!this.level_init) { this.ph = this.loud = this.ref = db; this.level_init = true; }
+      this.ph = Math.max(db, this.ph - 25.0 * hop / sr);
+      this.loud += (this.ph - this.loud) * this.a_loud;
+      this.ref += (this.loud - this.ref) * this.a_ref;
+      this.intensity = Math.min(1.0, Math.max(0.0, 0.5 + (this.loud - this.ref) / 20.0));
+    }
+    this.tracker.push(flux + LOW_W * low);
+    // the last six (start, flux, low); an onset is a local maximum with two frames of look-ahead
+    const qs = this.qs, qf = this.qf, ql = this.ql;
+    if (this.qn < 6) this.qn++;
+    else { qs.copyWithin(0, 1); qf.copyWithin(0, 1); ql.copyWithin(0, 1); }
+    qs[this.qn - 1] = start; qf[this.qn - 1] = flux; ql[this.qn - 1] = low;
+    if (this.qn >= 5) {
+      const e = this.qn;                             // q[-1] = index e-1
+      const s2 = qs[e - 3], f2 = qf[e - 3], l2 = ql[e - 3];
+      if (f2 > 0.0 && f2 >= qf[e - 5] && f2 >= qf[e - 4] && f2 >= qf[e - 2] && f2 >= qf[e - 1] &&
+          f2 >= ON_MUL * this.flux_ma + ON_MIN && s2 - this.last_pick_start >= this.min_gap) {
+        this.last_pick_start = s2;
+        this._onOnset(s2 + KAPPA * this.front.win, f2 / (this.flux_ma + 1e-6), l2 / (f2 + 1e-6));
+      }
+    }
+    this.flux_ma += (Math.min(flux, 8.0) - this.flux_ma) * this.a_ma;
+  }
+
+  // 0..1: how tightly the recent strums gather on a grid of one, two or three per beat
+  _gridFit(P) {
+    const lim = this.n - 8.0 * this.sr, on = this.onsets;
+    let first = null, cnt = 0;
+    for (let i = 0; i < on.length; i++) if (on[i] > lim) { if (first === null) first = on[i]; cnt++; }
+    if (cnt < GRID_N) return null;
+    let best = 0;
+    for (let h = 1; h <= 3; h++) {
+      let sr_ = 0, si = 0;
+      for (let i = 0; i < on.length; i++) {
+        if (on[i] > lim) { const ph = 2 * Math.PI * h * ((on[i] - first) / P); sr_ += Math.cos(ph); si += Math.sin(ph); }
+      }
+      const m = Math.sqrt(sr_ * sr_ + si * si) / cnt;
+      if (m > best) best = m;
+    }
+    return best;
+  }
+
+  _recentOnsets(secs) {
+    const lim = this.n - secs * this.sr, on = this.onsets;
+    let c = 0;
+    for (let i = 0; i < on.length; i++) if (on[i] > lim) c++;
+    return c;
+  }
+
+  _onOnset(tOn, strength, lowRatio) {
+    const sr = this.sr, clk = this.clock, cfg = this.cfg;
+    const gap = this.last_onset !== null ? tOn - this.last_onset : 1e12;
+    this.onsets.push(tOn);
+    while (this.onsets.length && this.onsets[0] < tOn - 8 * sr) this.onsets.shift();
+    this.last_onset = tOn;
+    if (gap > 3.0 * sr) {
+      this.first_onset = this.seq_start = tOn;       // first strum after a silence
+      this.chords.run.fill(0.0);                     // forget the previous chord's notes
+      this.chords.run_low.fill(0.0);
+    }
+    this.eval_queue.push(tOn + CHORD_DELAY * sr);
+    if (cfg.bpm && !clk.valid) {
+      clk.set(tOn, 60.0 * sr / cfg.bpm, 0);          // the first strum is the "1"
+      this.down_idx = 0;
+      this.ev.fill(0.0);
+      this.ev[0] = 5.0;
+      this.next_rec = 1;
+      this.memory.clear();
+    }
+    if (clk.valid && !this.user_down) {
+      const bf = clk.beatAt(tOn), b = pyround(bf);
+      if (Math.abs(bf - b) < 0.2) this.ev[mod(b, this.bpb)] += 0.1 * Math.min(strength, 4.0);
+    }
+  }
+
+  // ----- chords ---------------------------------------------------------------------------------
+  _runChordEvals() {
+    const sr = this.sr;
+    while (this.eval_queue.length && this.eval_queue[0] <= this.n) this._chordEval(Math.trunc(this.eval_queue.shift()), 0);
+    if (this.n >= this.next_periodic) {
+      this.next_periodic = this.n + Math.trunc(0.15 * sr);
+      this._chordEval(this.n, 1);
+    }
+  }
+
+  _chordEval(tEnd, kind) {
+    const N = this.chords.N, H = this.H;
+    const end = Math.min(tEnd, this.n);
+    if ((this.n - end) + N > H) return;
+    const seg = this.seg, hist = this.hist, hm = this.hmask, base = end - N;
+    let e2 = 0;
+    for (let i = 0; i < N; i++) {
+      const j = base + i, v = j >= 0 ? hist[j & hm] : 0;
+      seg[i] = v;
+      e2 += v * v;
+    }
+    if (20.0 * Math.log10(Math.sqrt(e2 / N) + 1e-9) < this.cfg.gate_db) return;
+    if (this.chords.update(seg, kind)) {
+      let tOn = tEnd - CHORD_DELAY * this.sr;
+      if (kind !== 0 && this.last_onset !== null && 0 <= tEnd - this.last_onset && tEnd - this.last_onset < 0.6 * this.sr) {
+        tOn = this.last_onset;                       // a look between strums: the change began at the last strum
+      }
+      this._onChordChange(tOn);
+    }
+  }
+
+  _onChordChange(tOn) {
+    const clk = this.clock;
+    if (clk.valid && !this.user_down) {
+      const bf = clk.beatAt(tOn), b = pyround(bf);
+      if (Math.abs(bf - b) < 0.25) this.ev[mod(b, this.bpb)] += 3.0;
+    }
+    this._bassFix();
+  }
+
+  // a bass note was played with the old chord just before we heard the change: replace it at once
+  _bassFix() {
+    const lb = this.last_bass, cur = this.chords.cur;
+    if (lb === null || cur === -1 || !this.active || lb.root === CH_ROOT[cur]) return;
+    if (this.n - lb.t > 0.30 * this.sr) return;
+    this.mixer.releaseGroup('bass', 0, Math.trunc(0.008 * this.sr));
+    this._playBass(lb.degree, lb.vel, Math.max(Math.trunc(0.12 * this.sr), lb.end - this.n), 0, cur);
+  }
+
+  _recordBeats() {
+    const clk = this.clock;
+    if (!(clk.valid && this.active)) return;
+    const lag = Math.max(Math.trunc(0.13 * this.sr), Math.trunc(0.3 * clk.period));
+    while (clk.beatTime(this.next_rec) + lag <= this.n) {
+      if (this.chords.cur !== -1 && this.last_onset !== null && this.n - this.last_onset < 3 * clk.period) {
+        this.memory.record(this.next_rec, this.chords.cur);
+      }
+      this.next_rec++;
+    }
+  }
+
+  // ----- tempo --------------------------------------------------------------------------------------
+  _maybeUpdateTempo() {
+    if (this.n >= this.next_tempo) {
+      this.next_tempo = this.n + (this.sr >> 2);
+      this._updateTempo();
+    }
+  }
+
+  _noteConf(conf) {
+    if (!this.clock.valid) this.low_since = null;
+    else if (conf >= UNLOCK_CONF) this.low_since = null;
+    else if (this.low_since === null) this.low_since = this.n;
+    else if (this.n - this.low_since > 6 * this.sr) this._deactivate();
+  }
+
+  _updateTempo() {
+    const cfg = this.cfg, clk = this.clock, tr = this.tracker, sr = this.sr;
+    const nOn = this._recentOnsets(5.0);
+    let eCur = 0.0, Pf, conf;
+    if (cfg.bpm) {
+      if (Math.min(tr.count, tr.W) < Math.trunc(2.0 * this.fps) || nOn < 2) return;
+      Pf = 60.0 * sr / cfg.bpm / this.hop; conf = 1.0;
+    } else {
+      const est = tr.estimate(clk.valid ? clk.period / this.hop : null);
+      if (est === null) { this._noteConf(0.0); return; }
+      Pf = est[0]; conf = est[1]; eCur = est[2];
+      this._noteConf(conf);
+    }
+    const P = Pf * this.hop;
+    if (!clk.valid) {
+      const cb = tr.bestPhase(Pf);
+      if (cb === null) return;
+      const tBeat = cb * this.hop + KAPPA * this.front.win;
+      if (cfg.bpm) {
+        this._startClock(P, tBeat);
+      } else if (conf >= LOCK_CONF && nOn >= 4 && this.seq_start !== null &&
+                 this.n - this.seq_start >= Math.max(4.5 * sr, 8.0 * P) &&
+                 (this._gridFit(P) || 0.0) >= GRID_MIN) {                // enough steady music to judge
+        this.cands.push(P);
+        if (this.cands.length > 3) this.cands.shift();
+        if (this.cands.length === 3 && Math.max.apply(null, this.cands) < 1.04 * Math.min.apply(null, this.cands)) {
+          this._startClock((this.cands[0] + this.cands[1] + this.cands[2]) / 3.0, tBeat);
+        }
+      } else {
+        this.cands = [];
+      }
+      return;
+    }
+    // ---- locked.  Are the strums still falling on the grid?  (random plucking, tuning, noise: they are not)
+    const R = cfg.bpm ? null : this._gridFit(clk.period);
+    if (R !== null) {                                // a leaky tally of "loose" looks (one every 0.25 s)
+      this.loose_t = Math.max(0.0, this.loose_t + (R < GRID_DROP ? 0.25 : -0.05));
+      if (this.loose_t > 5.0) { this._deactivate(); return; }
+    }
+    // nudge the phase, then the tempo, but only while there is something fresh to measure
+    if (this.last_onset === null || this.n - this.last_onset > 1.5 * clk.period) return;
+    let cb = tr.bestPhase(clk.period / this.hop);
+    if (cb !== null) {
+      const tBeat = cb * this.hop + KAPPA * this.front.win;
+      clk.reanchor(this.n);
+      const err = mod(tBeat - clk.t_ref + clk.period / 2.0, clk.period) - clk.period / 2.0;
+      if (Math.abs(err) < 0.15 * clk.period) {
+        clk.t_ref += PHASE_GAIN * err;
+        this.mismatch = 0;
+      } else {
+        this.mismatch++;
+        if (this.mismatch >= 4) { clk.t_ref += err; this.mismatch = 0; }
+      }
+    }
+    if (!cfg.bpm && conf >= UNLOCK_CONF) {
+      const r = P / clk.period;
+      if (Math.abs(r - 1.0) < 0.06) {
+        clk.reanchor(this.n);
+        clk.period += PERIOD_GAIN * (P - clk.period);
+        this.tempo_cand = [];
+      } else if (eCur >= SWITCH_FRAC * conf) {
+        this.tempo_cand = [];                        // the current tempo is still well supported
+      } else {
+        this.tempo_cand.push(P);
+        if (this.tempo_cand.length > SWITCH_N) this.tempo_cand.shift();
+        const tc = this.tempo_cand;
+        if (tc.length === SWITCH_N && Math.max.apply(null, tc) < 1.04 * Math.min.apply(null, tc)) {
+          let avg = 0;
+          for (let i = 0; i < tc.length; i++) avg += tc[i];
+          avg /= SWITCH_N;
+          cb = tr.bestPhase(avg / this.hop);
+          clk.reanchor(this.n);
+          clk.period = avg;
+          if (cb !== null) {
+            const tBeat = cb * this.hop + KAPPA * this.front.win;
+            clk.t_ref += mod(tBeat - clk.t_ref + clk.period / 2.0, clk.period) - clk.period / 2.0;
+          }
+          this.tempo_cand = [];
+          this.switches = this.switches.filter((t) => this.n - t < 30 * sr);
+          this.switches.push(this.n);
+          if (this.switches.length >= 3) { this._deactivate(); return; }   // a steady tempo does not change three times in 30 s
+        }
+      }
+    }
+  }
+
+  _startClock(P, tBeat) {
+    const clk = this.clock;
+    clk.set(tBeat, P, 0);
+    clk.reanchor(this.n);
+    this.down_idx = 0;
+    this.ev.fill(0.0);
+    if (this.first_onset !== null) {                 // the first strum is probably the "1"
+      const bf = clk.beatAt(this.first_onset);
+      if (Math.abs(bf - pyround(bf)) < 0.25) {
+        this.down_idx = mod(pyround(bf), this.bpb);
+        this.ev[this.down_idx] = 6.0;
+      }
+    }
+    this.user_down = false;
+    this.mismatch = 0;
+    this.loose_t = 0.0;
+    this.tempo_cand = [];
+    this.next_rec = Math.floor(clk.beatAt(this.n)) + 1;
+    this.memory.clear();
+  }
+
+  _deactivate() {
+    this.active = false;
+    this.clock.valid = false;
+    this.tracker.reset();
+    this.cands = []; this.tempo_cand = [];
+    this.low_since = null;
+    this.loose_t = 0.0;
+    this.switches = [];
+    this.first_onset = null;
+    this.seq_start = this.n;                         // judge the music from here on
+    this.last_bass = null;
+    this.memory.clear();
+  }
+
+  _updateActivity(n0) {
+    const clk = this.clock, cfg = this.cfg;
+    if (!clk.valid) { this.active = false; return; }
+    if (!this.active) {
+      if (this.last_onset !== null && this.n - this.last_onset < 2.5 * clk.period &&
+          this._recentOnsets(5.0) >= (cfg.bpm ? 3 : 4)) {
+        this.active = true;
+        this.next_step = Math.ceil(4.0 * clk.beatAt(n0 + this.L));
+        this.next_rec = Math.floor(clk.beatAt(this.n)) + 1;
+        this.last_bass = null;
+      }
+    } else if (cfg.stop_beats && this.last_onset !== null && this.n - this.last_onset > cfg.stop_beats * clk.period) {
+      this._deactivate();
+    }
+    // evidence for where the bar line is (a strum on a beat, or a chord change)
+    if (this.active && !this.user_down) {
+      let i = 0;
+      for (let k = 1; k < this.ev.length; k++) if (this.ev[k] > this.ev[i]) i = k;
+      if (i !== this.down_idx && this.ev[i] > 1.5 * this.ev[this.down_idx] + 3.0) this.down_idx = i;
+    }
+    if (this.active) for (let k = 0; k < this.ev.length; k++) this.ev[k] *= 0.9995;
+  }
+
+  // ----- playing -------------------------------------------------------------------------------------
+  _stepTime(s) {
+    const clk = this.clock, sw = this.swing, k = mod(s, 4);
+    const off = k === 0 ? 0.0 : (k === 1 ? sw / 2.0 : (k === 2 ? sw : sw + (1.0 - sw) / 2.0));
+    return clk.beatTime(Math.floor(s / 4)) + off * clk.period;
+  }
+
+  _schedule(n0, B) {
+    const clk = this.clock, tLo = n0 + this.L;
+    if (!(this.active && clk.valid)) return;
+    const tHi = tLo + B;
+    for (let it = 0; it < 64; it++) {
+      const s = this.next_step, t = this._stepTime(s);
+      if (t >= tHi) break;
+      this.next_step = s + 1;
+      if (t < tLo - 0.05 * this.sr) continue;        // stale (the clock moved): skip
+      this._triggerStep(s, Math.max(0, Math.trunc(t - tLo)));
+    }
+  }
+
+  _chooseTier() {
+    const i = this.intensity;
+    let t = this.tier;
+    if (t === 'mid') t = i > 0.75 ? 'hi' : (i < 0.25 ? 'lo' : 'mid');
+    else if (t === 'hi' && i < 0.65) t = 'mid';
+    else if (t === 'lo' && i > 0.35) t = 'mid';
+    this.tier = t;
+  }
+
+  _triggerStep(s, delay) {
+    const cfg = this.cfg, sr = this.sr;
+    if (this.muted) return;
+    const b = Math.floor(s / 4), sub = mod(s, 4);
+    const barBeat = mod(b - this.down_idx, this.bpb);
+    const barStep = barBeat * 4 + sub;
+    const barIdx = Math.floor((b - this.down_idx) / this.bpb);
+    this.cur_bar_step = barStep;
+    if (barStep === 0) {
+      this._chooseTier();
+      this.cur_crash = this.prev_fill;
+      this.cur_fill = !!(this.use_fills && this.tier !== 'lo' && mod(barIdx + 1, 4) === 0);
+      this.prev_fill = this.cur_fill;
+    }
+    const pat = this.pat[this.tier], drums = pat[0], bass = pat[1];
+    const vs = 0.62 + 0.38 * this.intensity;
+    const hum = cfg.humanize_ms * 1e-3 * sr;
+    const jit = hum > 0 ? Math.trunc(Math.max(-hum, Math.min(hum, this.rng.normal(0.0, hum / 2.0)))) : 0;
+    const d = Math.max(0, delay + jit);
+    if (this.drums_on) {
+      let hits = drums[barStep];
+      if (this.cur_fill && this.bpb === 4 && barStep >= 12) hits = FILL[barStep] || [];
+      for (let i = 0; i < hits.length; i++) this._hit(hits[i][0], hits[i][1] * vs * (1.0 + this.rng.uniform(-0.08, 0.08)), d);
+      if (this.cur_crash && barStep === 0) this._hit('crash', 0.9 * vs, d);
+    }
+    if (this.bass_on && bass[barStep] !== null && this.chords.cur !== -1) {
+      const degree = bass[barStep][0], nsteps = bass[barStep][1];
+      let chord = this.chords.cur;
+      if (cfg.predict && sub === 0 && this.last_onset !== null) {
+        const pr = this.memory.predict(b);
+        if (pr !== null && CH_ROOT[pr] !== CH_ROOT[chord]) chord = pr;      // on the beat of a learned change
+      }
+      const vel = (0.7 + 0.3 * this.intensity) * (1.0 + (barStep === 0 ? 0.12 : 0)) * (1.0 + this.rng.uniform(-0.05, 0.05));
+      const length = Math.trunc(nsteps * this.clock.period / 4.0);
+      this._playBass(degree, vel, length, d, chord);
+    }
+  }
+
+  _sample(name) {
+    const lst = this.kit.drums[name], i = this.rr[name] || 0;
+    this.rr[name] = (i + 1) % lst.length;
+    return lst[i];
+  }
+
+  _hit(name, vel, d) {
+    const ins = INSTR[name];
+    this.mixer.add(this._sample(ins[0]), vel * ins[1] * this.cfg.drum_level, d, null, 0, ins[2], Math.trunc(0.006 * this.sr));
+    if (this.cfg.record) this.log.push([this.n_block0 + d, name, Math.round(vel * 1000) / 1000, this.cur_bar_step]);
+  }
+
+  _playBass(degree, vel, length, d, chord) {
+    const root = CH_ROOT[chord], qual = CH_Q[chord];
+    const midi = bassMidi(root, qual, degree);
+    const gate = Math.max(Math.trunc(0.05 * this.sr), Math.trunc(length * GATE_NOTE));
+    const data = this.kit.bass[Math.min(Math.max(midi, BASS_LO), BASS_HI)];
+    this.mixer.add(data, vel * BASS_GAIN * this.cfg.bass_level, d, gate, Math.trunc(0.03 * this.sr), 'bass', Math.trunc(0.012 * this.sr));
+    const t = this.n_block0 + d;
+    this.last_bass = { t: t, root: root, degree: degree, vel: vel, end: t + gate };
+    if (this.cfg.record) this.log.push([t, 'bass', midi, this.cur_bar_step]);
+  }
+}
+
+const api = {
+  makeConfig, Engine, Mixer, FrontEnd, BeatTracker, Clock, ChordTracker, ChordMemory, FFT, RFFT, Rng,
+  makeInstruments, makeDrumKit, makeBassBank, renderBassNote, STYLES, NOTE_NAMES, BASS_LO, BASS_HI,
+  CH_ROOT, CH_Q, NCH,
+};
+if (typeof module !== 'undefined' && module.exports) module.exports = api;
+else root.JamCore = api;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+</script>
+<script>
+/* Jam Band page: Web Audio glue and UI around core.js (the engine).
+ *   Live  : microphone -> worklet (engine + mixer) -> speakers.   Needs microphone access.
+ *   Clip  : a recording you choose -> engine run offline -> play guitar + band together.
+ */
+(function () {
+'use strict';
+
+const J = window.JamCore;
+const $ = (id) => document.getElementById(id);
+const CORE_TEXT = (function () { const el = $('core-src'); return el ? el.textContent : ''; })();
+const tick = () => new Promise((r) => setTimeout(r, 0));
+const clamp = (x, lo, hi) => (x < lo ? lo : (x > hi ? hi : x));
+
+// ---------------------------------------------------------------------------------------
+// the audio-thread side: lives in a worklet, built from core.js + this function's source
+// ---------------------------------------------------------------------------------------
+function workletMain() {
+  class JamProcessor extends AudioWorkletProcessor {
+    constructor() {
+      super();
+      this.engine = null;
+      this.monitor = 0;
+      this.zero = new Float32Array(128);
+      this.statusEvery = Math.round(sampleRate * 0.05);
+      this.nextStatus = 0;
+      this.frames = 0;
+      this.peak = 0;
+      this.dbg = null;
+      this.dbgIn = null;
+      this.port.onmessage = (e) => this.onMessage(e.data);
+    }
+
+    warm(cfg, kit) {
+      // a few seconds of synthetic strums through a throw-away engine, so that every code path is
+      // compiled before the first real block of guitar arrives
+      const sr = sampleRate, e = new JamCore.Engine(Object.assign({}, cfg, { bpm: null, record: false }), kit);
+      const n = Math.floor(0.5 * sr), chord = new Float32Array(n), freqs = [110, 165, 220, 277, 330];
+      let pk = 1e-9;
+      for (let k = 0; k < freqs.length; k++) {
+        for (let i = 0; i < n; i++) chord[i] += Math.sin(2 * Math.PI * freqs[k] * i / sr) * Math.exp(-(i / sr) / (0.5 + 0.1 * k));
+      }
+      for (let i = 0; i < n; i++) pk = Math.max(pk, Math.abs(chord[i]));
+      for (let i = 0; i < n; i++) chord[i] *= 0.4 / pk;
+      const x = new Float32Array(Math.floor(9 * sr)), out = new Float32Array(128);
+      for (let k = 0; k < 18; k++) {
+        const s = Math.floor(k * 0.5 * sr) + Math.floor(0.3 * sr);
+        for (let j = 0; j < n && s + j < x.length; j++) x[s + j] += chord[j];
+      }
+      for (let i = 0; i + 128 <= x.length; i += 128) e.process(x.subarray(i, i + 128), 128, out);
+    }
+
+    onMessage(m) {
+      if (m.type === 'init') {
+        try {
+          const cfg = JamCore.makeConfig(Object.assign({}, m.cfg, { sr: sampleRate, blocksize: 128 }));
+          this.warm(cfg, m.kit);
+          this.engine = new JamCore.Engine(cfg, m.kit);
+          this.monitor = m.monitor || 0;
+          if (m.debug) { this.dbg = []; this.dbgIn = []; }
+          this.port.postMessage({ type: 'ready' });
+        } catch (err) {
+          this.port.postMessage({ type: 'error', message: String((err && err.stack) || err) });
+        }
+      } else if (m.type === 'cmd') {
+        if (this.engine) this.engine.command.apply(this.engine, m.cmd);
+      } else if (m.type === 'set') {
+        if (m.key === 'monitor') this.monitor = m.value;
+        else if (this.engine) this.engine.command('set', m.key, m.value);
+      } else if (m.type === 'debug') {
+        this.dbg = m.on ? [] : null;
+        this.dbgIn = m.on ? [] : null;
+      } else if (m.type === 'dump') {
+        const join = (parts) => {
+          let total = 0;
+          for (const p of parts) total += p.length;
+          const all = new Float32Array(total);
+          let o = 0;
+          for (const p of parts) { all.set(p, o); o += p.length; }
+          return all;
+        };
+        const a = join(this.dbg || []), b = join(this.dbgIn || []);
+        this.port.postMessage({ type: 'dump', out: a, inp: b }, [a.buffer, b.buffer]);
+      }
+    }
+
+    process(inputs, outputs) {
+      const chans = outputs[0];
+      if (!chans || !chans.length) return true;
+      const out = chans[0], B = out.length;
+      let inp = inputs[0] && inputs[0][0];
+      if (!inp || inp.length < B) {
+        if (this.zero.length < B) this.zero = new Float32Array(B);
+        inp = this.zero;
+      }
+      if (!this.engine) {
+        out.fill(0);
+      } else {
+        this.engine.process(inp, B, out);
+        const mon = this.monitor;
+        let pk = this.peak;
+        for (let i = 0; i < B; i++) {
+          const a = out[i] < 0 ? -out[i] : out[i];
+          if (a > pk) pk = a;
+          if (mon > 0) out[i] += mon * inp[i];
+        }
+        this.peak = pk;
+        if (this.dbg) { this.dbg.push(out.slice(0, B)); this.dbgIn.push(inp.slice(0, B)); }
+        this.frames += B;
+        if (this.frames >= this.nextStatus) {
+          this.nextStatus = this.frames + this.statusEvery;
+          const s = this.engine.status();
+          s.type = 'status';
+          s.out_peak = this.peak;
+          this.peak = 0;
+          this.port.postMessage(s);
+        }
+      }
+      for (let c = 1; c < chans.length; c++) chans[c].set(out);
+      return true;
+    }
+  }
+  registerProcessor('jam-processor', JamProcessor);
+}
+
+// ---------------------------------------------------------------------------------------
+// settings that are remembered on this device (when the browser lets the page do that)
+// ---------------------------------------------------------------------------------------
+const DEFAULTS = {
+  style: 'rock', level: 50, drums: 100, bass: 100, lat: 60, tempoMode: 'auto', bpm: 100,
+  monitor: false, gate: -50, tone: 'finger', fills: true, predict: true,
+  cStyle: 'rock', cTempoMode: 'auto', cBpm: 100,
+};
+let prefs = Object.assign({}, DEFAULTS);
+try {
+  const raw = window.localStorage.getItem('jamband.prefs');
+  if (raw) prefs = Object.assign(prefs, JSON.parse(raw));
+} catch (e) { /* storage may be missing or blocked */ }
+function savePrefs() { try { window.localStorage.setItem('jamband.prefs', JSON.stringify(prefs)); } catch (e) { /* ignore */ } }
+
+// ---------------------------------------------------------------------------------------
+// audio context, instrument sounds
+// ---------------------------------------------------------------------------------------
+let ctx = null;
+function getCtx() {
+  if (!ctx) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) throw new Error('This browser has no Web Audio.');
+    ctx = new AC({ latencyHint: 'interactive' });
+  }
+  if (ctx.state === 'suspended') { try { ctx.resume(); } catch (e) { /* needs a tap */ } }
+  return ctx;
+}
+function setAudioSession(type) {
+  try { if (navigator.audioSession) navigator.audioSession.type = type; } catch (e) { /* not supported */ }
+}
+
+const kitCache = {};
+async function getKit(sr, tone, onProgress) {
+  const key = sr + '/' + tone;
+  if (kitCache[key]) return kitCache[key];
+  const drums = J.makeDrumKit(sr, 1);
+  await tick();
+  const bass = {};
+  const total = J.BASS_HI - J.BASS_LO + 1;
+  for (let m = J.BASS_LO; m <= J.BASS_HI; m++) {
+    bass[m] = J.renderBassNote(m, tone, sr);
+    if (onProgress) onProgress((m - J.BASS_LO + 1) / total);
+    if ((m - J.BASS_LO) % 3 === 2) await tick();
+  }
+  kitCache[key] = { sr: sr, drums: drums, bass: bass };
+  return kitCache[key];
+}
+
+// ---------------------------------------------------------------------------------------
+// live backends: a worklet (preferred) or a ScriptProcessor on the page thread (fallback)
+// ---------------------------------------------------------------------------------------
+function liveConfig() {
+  return {
+    style: prefs.style, bpm: prefs.tempoMode === 'fixed' ? prefs.bpm : null, gate_db: prefs.gate,
+    level: prefs.level / 100, drum_level: prefs.drums / 100, bass_level: prefs.bass / 100,
+    bass_tone: prefs.tone, latency_ms: prefs.lat, fills: prefs.fills, predict: prefs.predict,
+  };
+}
+
+class WorkletBackend {
+  constructor(c, node) {
+    this.kind = 'worklet';
+    this.ctx = c;
+    this.node = node;
+    this.onstatus = null;
+    this.waiters = {};
+    node.port.onmessage = (e) => {
+      const m = e.data;
+      if (m.type === 'status' && this.onstatus) this.onstatus(m);
+      else if (m.type === 'ready' && this.waiters.ready) this.waiters.ready.resolve();
+      else if (m.type === 'error') { if (this.waiters.ready) this.waiters.ready.reject(new Error(m.message)); }
+      else if (m.type === 'dump' && this.waiters.dump) this.waiters.dump.resolve({ out: m.out, inp: m.inp });
+    };
+  }
+  static async create(c, kit) {
+    const src = CORE_TEXT + '\n;(' + workletMain.toString() + ')();';
+    const url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
+    try { await c.audioWorklet.addModule(url); } finally { setTimeout(() => URL.revokeObjectURL(url), 5000); }
+    const node = new AudioWorkletNode(c, 'jam-processor', {
+      numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1],
+      channelCount: 1, channelCountMode: 'explicit', channelInterpretation: 'speakers',
+    });
+    const be = new WorkletBackend(c, node);
+    const ready = new Promise((resolve, reject) => { be.waiters.ready = { resolve, reject }; });
+    node.port.postMessage({ type: 'init', cfg: liveConfig(), kit: kit, monitor: prefs.monitor ? 0.8 : 0, debug: !!window.__jamDebug });
+    await Promise.race([ready, new Promise((_, rej) => setTimeout(() => rej(new Error('The band engine did not start.')), 15000))]);
+    return be;
+  }
+  input() { return this.node; }
+  output() { return this.node; }
+  send() { this.node.port.postMessage({ type: 'cmd', cmd: Array.prototype.slice.call(arguments) }); }
+  set(key, value) { this.node.port.postMessage({ type: 'set', key: key, value: value }); }
+  debug(on) { this.node.port.postMessage({ type: 'debug', on: on }); }
+  dump() {
+    return new Promise((resolve, reject) => { this.waiters.dump = { resolve, reject }; this.node.port.postMessage({ type: 'dump' }); });
+  }
+  destroy() { try { this.node.port.onmessage = null; this.node.disconnect(); } catch (e) { /* ignore */ } }
+}
+
+class ScriptBackend {
+  constructor(c, kit) {
+    this.kind = 'script';
+    this.ctx = c;
+    this.onstatus = null;
+    this.monitor = prefs.monitor ? 0.8 : 0;
+    this.cfg = J.makeConfig(Object.assign({}, liveConfig(), { sr: c.sampleRate, blocksize: 128 }));
+    this.engine = new J.Engine(this.cfg, kit);
+    this.node = c.createScriptProcessor(512, 1, 1);
+    this.nextStatus = 0;
+    this.frames = 0;
+    this.peak = 0;
+    this.dbg = window.__jamDebug ? [] : null;
+    this.dbgIn = window.__jamDebug ? [] : null;
+    this.node.onaudioprocess = (e) => this.process(e);
+  }
+  static async create(c, kit) {
+    const be = new ScriptBackend(c, kit);
+    // compile the code paths once before real audio flows
+    const sr = c.sampleRate, warm = new J.Engine(Object.assign({}, be.cfg, { bpm: null, record: false }), kit);
+    const out = new Float32Array(128), x = new Float32Array(128);
+    for (let k = 0; k < 4000; k++) {
+      for (let i = 0; i < 128; i++) x[i] = ((k * 128 + i) % Math.round(sr * 0.5) < 3000) ? Math.sin(i * 0.3) * 0.4 : 0;
+      warm.process(x, 128, out);
+    }
+    return be;
+  }
+  process(e) {
+    const inp = e.inputBuffer.getChannelData(0), out = e.outputBuffer.getChannelData(0), B = out.length;
+    for (let o = 0; o < B; o += 128) {
+      const n = Math.min(128, B - o);
+      this.engine.process(inp.subarray(o, o + 128), 128, this.tmp || (this.tmp = new Float32Array(128)));
+      for (let i = 0; i < n; i++) {
+        const v = this.tmp[i], a = v < 0 ? -v : v;
+        if (a > this.peak) this.peak = a;
+        out[o + i] = v + (this.monitor > 0 ? this.monitor * inp[o + i] : 0);
+      }
+      this.frames += n;
+    }
+    if (this.dbg) { this.dbg.push(out.slice()); this.dbgIn.push(inp.slice()); }
+    for (let c = 1; c < e.outputBuffer.numberOfChannels; c++) e.outputBuffer.getChannelData(c).set(out);
+    if (this.frames >= this.nextStatus) {
+      this.nextStatus = this.frames + Math.round(this.ctx.sampleRate * 0.05);
+      const s = this.engine.status();
+      s.out_peak = this.peak;
+      this.peak = 0;
+      if (this.onstatus) this.onstatus(s);
+    }
+  }
+  input() { return this.node; }
+  output() { return this.node; }
+  send() { this.engine.command.apply(this.engine, arguments); }
+  set(key, value) { if (key === 'monitor') this.monitor = value; else this.engine.command('set', key, value); }
+  debug(on) { this.dbg = on ? [] : null; this.dbgIn = on ? [] : null; }
+  dump() {
+    const join = (parts) => {
+      let total = 0;
+      for (const p of parts) total += p.length;
+      const all = new Float32Array(total);
+      let o = 0;
+      for (const p of parts) { all.set(p, o); o += p.length; }
+      return all;
+    };
+    return Promise.resolve({ out: join(this.dbg || []), inp: join(this.dbgIn || []) });
+  }
+  destroy() { try { this.node.onaudioprocess = null; this.node.disconnect(); } catch (e) { /* ignore */ } }
+}
+
+// ---------------------------------------------------------------------------------------
+// the Live tab
+// ---------------------------------------------------------------------------------------
+let live = null;                       // { backend, stream, src }
+let lastStatus = null;
+let liveBusy = false;
+let startToken = 0;
+let wakeLock = null;
+
+async function holdScreen() {
+  try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request('screen'); } catch (e) { wakeLock = null; }
+}
+function releaseScreen() {
+  try { if (wakeLock) wakeLock.release(); } catch (e) { /* ignore */ }
+  wakeLock = null;
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && live) {
+    if (ctx && ctx.state !== 'running') { try { ctx.resume(); } catch (e) { /* ignore */ } }
+    holdScreen();
+  }
+});
+
+function micFacts() {
+  const f = { secure: !!window.isSecureContext, gum: !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia), framed: false, policy: null };
+  try { f.framed = window.top !== window; } catch (e) { f.framed = true; }
+  try {
+    const p = document.permissionsPolicy || document.featurePolicy;
+    if (p && p.allowsFeature) f.policy = p.allowsFeature('microphone');
+  } catch (e) { /* ignore */ }
+  return f;
+}
+
+function setState(text, tone) {
+  const el = $('state');
+  el.textContent = text;
+  el.dataset.tone = tone || '';
+}
+
+function micBlockedMessage(err) {
+  const f = micFacts();
+  const name = err && err.name ? err.name : '';
+  if (!f.gum || name === 'NoMediaDevices') return 'This browser or view does not offer microphone access. Use the Test a recording tab.';
+  if (f.policy === false || (f.framed && (name === 'NotAllowedError' || name === 'SecurityError'))) {
+    return 'This view does not let the page use the microphone. Use the Test a recording tab, or open the page in a browser tab of its own.';
+  }
+  if (name === 'SecurityError') return 'The microphone needs a secure (https) page.';
+  if (name === 'NotAllowedError') return 'Microphone permission was declined. Allow the microphone for this page and tap Start again.';
+  if (name === 'NotFoundError') return 'No microphone was found.';
+  if (name === 'NotReadableError') return 'The microphone is busy in another app.';
+  if (!f.secure) return 'The microphone needs a secure (https) page.';
+  if (name === 'OverconstrainedError' || name === 'AbortError' || name === 'TypeError') return 'Could not open the microphone (' + name + ').';
+  return 'Could not start: ' + ((err && err.message) || name || 'unknown error');
+}
+
+async function startLive() {
+  if (liveBusy || live) return;
+  liveBusy = true;
+  const token = ++startToken;
+  $('start').disabled = true;
+  stopClipPlayback();
+  setState('Preparing the band', 'busy');
+  let c;
+  try {
+    setAudioSession('play-and-record');
+    c = getCtx();
+    const f = micFacts();
+    if (!f.gum) throw Object.assign(new Error('no getUserMedia'), { name: 'NoMediaDevices' });
+    const kitP = getKit(c.sampleRate, prefs.tone, (p) => { if (token === startToken && liveBusy) setState('Tuning the band ' + Math.round(p * 100) + '%', 'busy'); });
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: { channelCount: { ideal: 1 }, echoCancellation: { ideal: false }, noiseSuppression: { ideal: false }, autoGainControl: { ideal: false } },
+      });
+    } catch (err) {
+      kitP.catch(() => {});
+      throw err;
+    }
+    const kit = await kitP;
+    let backend = null;
+    if (!window.__forceSP && c.audioWorklet && typeof AudioWorkletNode !== 'undefined') {
+      try { backend = await WorkletBackend.create(c, kit); } catch (err) { console.warn('worklet unavailable, using the page thread', err); backend = null; }
+    }
+    if (!backend) backend = await ScriptBackend.create(c, kit);
+    const src = c.createMediaStreamSource(stream);
+    src.connect(backend.input());
+    backend.output().connect(c.destination);
+    backend.onstatus = onStatus;
+    live = { backend: backend, stream: stream, src: src };
+    backend.set('drums_on', $('sw-drums').checked);
+    backend.set('bass_on', $('sw-bass').checked);
+    backend.set('muted', false);
+    $('mute').setAttribute('aria-pressed', 'false');
+    $('mute').textContent = 'Mute band';
+    if (c.state !== 'running') { try { await c.resume(); } catch (e) { /* ignore */ } }
+    $('start').textContent = 'Stop';
+    $('start').classList.add('running');
+    $('start').disabled = false;
+    $('mic-chip').textContent = 'Mic on';
+    $('mic-chip').dataset.tone = 'ok';
+    setState('Listening. Strum steadily for about five seconds.', 'ok');
+    renderDiag();
+    holdScreen();
+    const mine = live;
+    setTimeout(() => {
+      if (live === mine && lastStatus === null) setState('The audio engine is not running. Tap Stop, then Start again.', 'bad');
+    }, 4000);
+  } catch (err) {
+    console.warn(err);
+    setState(micBlockedMessage(err) || String(err), 'bad');
+    $('start').disabled = false;
+    $('start').textContent = 'Start listening';
+    if (err && (err.name === 'NotAllowedError' || err.name === 'SecurityError')) {
+      $('mic-chip').textContent = 'Mic blocked';
+      $('mic-chip').dataset.tone = 'bad';
+    }
+    teardownLive();
+  } finally {
+    liveBusy = false;
+  }
+}
+
+function teardownLive() {
+  if (live) {
+    try { live.backend.destroy(); } catch (e) { /* ignore */ }
+    try { live.src.disconnect(); } catch (e) { /* ignore */ }
+    try { live.stream.getTracks().forEach((t) => t.stop()); } catch (e) { /* ignore */ }
+    live = null;
+  }
+  lastStatus = null;
+}
+
+function stopLive() {
+  if (!live) return;
+  releaseScreen();
+  teardownLive();
+  $('start').textContent = 'Start listening';
+  $('start').classList.remove('running');
+  $('mic-chip').textContent = 'Mic off';
+  $('mic-chip').dataset.tone = '';
+  setState('Stopped.', '');
+  paintReadout(null);
+}
+
+function onStatus(s) {
+  lastStatus = s;
+  paintReadout(s);
+}
+
+function paintReadout(s) {
+  const bpm = s && s.bpm ? Math.round(s.bpm) : null;
+  $('r-bpm').textContent = bpm ? String(bpm) : '–';
+  $('r-chord').textContent = s && s.chord ? s.chord : '–';
+  const bpb = s && s.bpb ? s.bpb : 4;
+  const leds = $('leds');
+  while (leds.children.length < 4) { const d = document.createElement('i'); leds.appendChild(d); }
+  for (let i = 0; i < leds.children.length; i++) {
+    const el = leds.children[i];
+    el.hidden = i >= bpb;
+    el.classList.toggle('on', !!(s && s.beat === i + 1));
+  }
+  const db = s ? s.in_db : -90;
+  $('meter-fill').style.width = clamp((db + 70) / 70 * 100, 0, 100) + '%';
+  $('meter-val').textContent = s ? Math.round(db) + ' dB' : '';
+  if (!s) return;
+  let msg, tone = 'ok';
+  if (s.muted) { msg = 'Band muted.'; tone = ''; }
+  else if (db < prefs.gate - 5 && !s.locked) { msg = 'Waiting for sound. Play something.'; tone = ''; }
+  else if (s.locked && s.active) { msg = 'Band is playing with you.'; }
+  else if (s.locked) { msg = 'Tempo found. Strum to bring the band back in.'; }
+  else { msg = 'Listening. Strum steadily for about five seconds.'; }
+  setState(msg, tone);
+}
+
+// ----- live controls -----
+function liveSend() { if (live) live.backend.send.apply(live.backend, arguments); }
+function liveSet(key, value) { if (live) live.backend.set(key, value); }
+
+function bindRange(id, outId, fmt, apply) {
+  const el = $(id), out = $(outId);
+  const upd = () => { out.textContent = fmt(+el.value); };
+  el.addEventListener('input', () => { upd(); apply(+el.value); });
+  upd();
+}
+
+function initLiveControls() {
+  $('style').value = prefs.style;
+  $('style').addEventListener('change', () => { prefs.style = $('style').value; savePrefs(); liveSend('style', prefs.style); });
+  $('level').value = prefs.level;
+  bindRange('level', 'level-o', (v) => v + '%', (v) => { prefs.level = v; savePrefs(); liveSet('level', v / 100); });
+  $('drums').value = prefs.drums;
+  bindRange('drums', 'drums-o', (v) => v + '%', (v) => { prefs.drums = v; savePrefs(); liveSet('drum_level', v / 100); });
+  $('bass').value = prefs.bass;
+  bindRange('bass', 'bass-o', (v) => v + '%', (v) => { prefs.bass = v; savePrefs(); liveSet('bass_level', v / 100); });
+  $('lat').value = prefs.lat;
+  bindRange('lat', 'lat-o', (v) => v + ' ms', (v) => { prefs.lat = v; savePrefs(); liveSet('latency_ms', v); });
+  $('gate').value = prefs.gate;
+  bindRange('gate', 'gate-o', (v) => v + ' dB', (v) => { prefs.gate = v; savePrefs(); liveSet('gate_db', v); placeGateMark(); });
+  placeGateMark();
+
+  const setTempoUI = () => {
+    $('t-auto').setAttribute('aria-pressed', String(prefs.tempoMode === 'auto'));
+    $('t-fixed').setAttribute('aria-pressed', String(prefs.tempoMode === 'fixed'));
+    $('bpm-box').hidden = prefs.tempoMode !== 'fixed';
+    $('bpm-in').value = prefs.bpm;
+  };
+  const applyTempo = () => { liveSend('bpm', prefs.tempoMode === 'fixed' ? prefs.bpm : null); };
+  $('t-auto').addEventListener('click', () => { prefs.tempoMode = 'auto'; savePrefs(); setTempoUI(); applyTempo(); });
+  $('t-fixed').addEventListener('click', () => { prefs.tempoMode = 'fixed'; savePrefs(); setTempoUI(); applyTempo(); });
+  const setBpm = (v) => { prefs.bpm = clamp(Math.round(v) || 100, 40, 220); $('bpm-in').value = prefs.bpm; savePrefs(); applyTempo(); };
+  $('bpm-dn').addEventListener('click', () => setBpm(prefs.bpm - 1));
+  $('bpm-up').addEventListener('click', () => setBpm(prefs.bpm + 1));
+  $('bpm-in').addEventListener('change', () => setBpm(+$('bpm-in').value));
+  setTempoUI();
+
+  $('beat1').addEventListener('click', () => liveSend('downbeat'));
+  $('half').addEventListener('click', () => liveSend('half'));
+  const mute = $('mute');
+  mute.addEventListener('click', () => {
+    const on = mute.getAttribute('aria-pressed') !== 'true';
+    mute.setAttribute('aria-pressed', String(on));
+    mute.textContent = on ? 'Unmute band' : 'Mute band';
+    liveSet('muted', on);
+  });
+  const bindSwitch = (id, key, apply) => {
+    const el = $(id);
+    el.checked = !!prefs[key];
+    el.addEventListener('change', () => { prefs[key] = el.checked; savePrefs(); apply(el.checked); });
+  };
+  const dr = $('sw-drums'), bs = $('sw-bass');
+  dr.addEventListener('change', () => liveSet('drums_on', dr.checked));
+  bs.addEventListener('change', () => liveSet('bass_on', bs.checked));
+  bindSwitch('sw-monitor', 'monitor', (v) => liveSet('monitor', v ? 0.8 : 0));
+  bindSwitch('sw-fills', 'fills', (v) => liveSet('fills', v));
+  bindSwitch('sw-predict', 'predict', (v) => liveSet('predict', v));
+  $('tone').value = prefs.tone;
+  $('tone').addEventListener('change', () => { prefs.tone = $('tone').value; savePrefs(); $('tone-note').hidden = !live; });
+
+  $('start').addEventListener('click', () => { if (live) stopLive(); else startLive(); });
+}
+
+function placeGateMark() {
+  $('gate-mark').style.left = clamp((prefs.gate + 70) / 70 * 100, 0, 100) + '%';
+}
+
+function renderDiag() {
+  const f = micFacts(), c = ctx;
+  const rows = [
+    ['Secure page', f.secure ? 'yes' : 'no'],
+    ['Inside another page', f.framed ? 'yes' : 'no'],
+    ['Microphone allowed by host', f.policy === null ? 'unknown' : (f.policy ? 'yes' : 'no')],
+    ['Audio engine', live ? live.backend.kind : '–'],
+    ['Sample rate', c ? c.sampleRate + ' Hz' : '–'],
+    ['Output latency (reported)', c ? Math.round(((c.baseLatency || 0) + (c.outputLatency || 0)) * 1000) + ' ms' : '–'],
+  ];
+  $('diag').innerHTML = rows.map((r) => '<div><dt>' + r[0] + '</dt><dd>' + r[1] + '</dd></div>').join('');
+}
+
+// ---------------------------------------------------------------------------------------
+// the Clip tab
+// ---------------------------------------------------------------------------------------
+let clip = null;        // { name, audio, mono, sr, dur, result, bandBuf, peaks }
+let play = null;        // { gSrc, bSrc, t0 }
+let gGuitar = null, gBand = null;
+
+function fmtTime(t) {
+  t = Math.max(0, t);
+  const m = Math.floor(t / 60), s = Math.floor(t % 60);
+  return m + ':' + (s < 10 ? '0' : '') + s;
+}
+
+function decode(c, buf) {
+  return new Promise((resolve, reject) => {
+    const p = c.decodeAudioData(buf, resolve, reject);
+    if (p && p.catch) p.catch(reject);
+  });
+}
+
+const MAX_CLIP_S = 240;
+
+async function loadClip(file) {
+  stopClipPlayback();
+  setClipMsg('Reading ' + file.name + '…', 'busy');
+  $('clip-work').hidden = true;
+  $('clip-out').hidden = true;
+  try {
+    const c = getCtx();
+    if (file.size > 60 * 1024 * 1024) throw new Error('That file is large. Pick a clip under a few minutes.');
+    const arr = await file.arrayBuffer();
+    let audio;
+    try { audio = await decode(c, arr); }
+    catch (e) { throw new Error('This browser could not read the audio in that file. Try a .m4a, .mp3 or .wav recording.'); }
+    const n = Math.min(audio.length, Math.floor(MAX_CLIP_S * audio.sampleRate));
+    const mono = new Float32Array(n);
+    for (let ch = 0; ch < audio.numberOfChannels; ch++) {
+      const d = audio.getChannelData(ch);
+      for (let i = 0; i < n; i++) mono[i] += d[i] / audio.numberOfChannels;
+    }
+    let pk = 0;
+    for (let i = 0; i < n; i++) { const a = Math.abs(mono[i]); if (a > pk) pk = a; }
+    clip = { name: file.name, audio: audio, mono: mono, sr: audio.sampleRate, dur: n / audio.sampleRate, result: null, bandBuf: null, peaks: null, peak: pk, cut: audio.length > n };
+    $('clip-name').textContent = file.name;
+    $('clip-meta').textContent = fmtTime(clip.dur) + ' · ' + Math.round(clip.sr / 100) / 10 + ' kHz' + (clip.cut ? ' · first ' + fmtTime(MAX_CLIP_S) + ' used' : '');
+    $('clip-work').hidden = false;
+    if (pk < 0.003) setClipMsg('That clip is almost silent. Check that the recording has sound.', 'bad');
+    else setClipMsg('Ready. Choose a style and add the band.', 'ok');
+    $('clip-run').focus({ preventScroll: true });
+  } catch (err) {
+    console.warn(err);
+    clip = null;
+    setClipMsg(err.message || String(err), 'bad');
+  }
+}
+
+function setClipMsg(text, tone) {
+  const el = $('clip-msg');
+  el.textContent = text;
+  el.dataset.tone = tone || '';
+}
+
+async function runClip() {
+  if (!clip) return;
+  stopClipPlayback();
+  const run = $('clip-run');
+  run.disabled = true;
+  $('clip-out').hidden = true;
+  const sr = clip.sr;
+  const bar = $('clip-bar');
+  $('clip-prog').hidden = false;
+  try {
+    setClipMsg('Tuning the band…', 'busy');
+    const kit = await getKit(sr, prefs.tone);
+    const cfg = J.makeConfig({
+      sr: sr, blocksize: 128, record: true, style: prefs.cStyle, bpm: prefs.cTempoMode === 'fixed' ? prefs.cBpm : null,
+      level: 0.6, humanize_ms: 4.0, latency_ms: 0,
+    });
+    const eng = new J.Engine(cfg, kit);
+    const pad = Math.floor(5 * sr), total = clip.mono.length + pad;
+    const band = new Float32Array(total), blk = new Float32Array(128), out = new Float32Array(128);
+    setClipMsg('Listening to your recording…', 'busy');
+    let t0 = performance.now();
+    for (let i = 0; i < total; i += 128) {
+      const n = Math.max(0, Math.min(128, clip.mono.length - i));
+      blk.fill(0);
+      if (n > 0) blk.set(clip.mono.subarray(i, i + n));
+      eng.process(blk, 128, out);
+      const m = Math.min(128, total - i);
+      for (let k = 0; k < m; k++) band[i + k] = out[k];
+      if (performance.now() - t0 > 40) {
+        bar.style.width = (i / total * 100) + '%';
+        await tick();
+        t0 = performance.now();
+      }
+    }
+    bar.style.width = '100%';
+    const c = getCtx();
+    const bandBuf = c.createBuffer(1, total, sr);
+    bandBuf.copyToChannel(band, 0);
+    clip.bandBuf = bandBuf;
+    clip.result = summarize(eng, sr);
+    clip.log = eng.log;
+    clip.trace = eng.trace;
+    clip.peaks = null;
+    ensureClipGraph(c);
+    paintResult();
+    $('clip-out').hidden = false;
+    drawTimeline();
+    setClipMsg(clip.result.message, clip.result.joined ? 'ok' : 'warn');
+  } catch (err) {
+    console.warn(err);
+    setClipMsg('Something went wrong: ' + (err.message || err), 'bad');
+  } finally {
+    run.disabled = false;
+    $('clip-prog').hidden = true;
+  }
+}
+
+// The chord the band was using, as runs [name, first look, looks].  A chord that lasts less than
+// three looks (0.75 s) is a flicker of the detector and is left out of what is shown.
+function chordRuns(trace) {
+  const runs = [];
+  for (let i = 0; i < trace.length; i++) {
+    const t = trace[i];
+    if (!t[3] || !t[4]) continue;
+    const last = runs[runs.length - 1];
+    if (last && last[0] === t[4] && last[3] === i - 1) { last[2]++; last[3] = i; }
+    else runs.push([t[4], i, 1, i]);
+  }
+  let keep = runs.filter((r) => r[2] >= 3);
+  if (!keep.length) keep = runs;
+  const merged = [];
+  for (const r of keep) {
+    if (merged.length && merged[merged.length - 1][0] === r[0]) merged[merged.length - 1][2] += r[2];
+    else merged.push(r.slice());
+  }
+  return merged;
+}
+
+function summarize(eng, sr) {
+  const tr = eng.trace;
+  let joinT = null;
+  const bpms = [];
+  for (const t of tr) {
+    if (t[3]) {
+      if (joinT === null) joinT = t[0] / sr;
+      if (t[1]) bpms.push(t[1]);
+    }
+  }
+  const chords = chordRuns(tr).map((r) => r[0]);
+  bpms.sort((a, b) => a - b);
+  const bpm = bpms.length ? bpms[bpms.length >> 1] : null;
+  let hits = 0, bassNotes = 0;
+  for (const e of eng.log) { if (e[1] === 'bass') bassNotes++; else hits++; }
+  const r = { joined: joinT !== null, joinT: joinT, bpm: bpm, chords: chords, hits: hits, bassNotes: bassNotes };
+  if (r.joined) r.message = 'The band joined after ' + joinT.toFixed(1) + ' seconds at about ' + Math.round(bpm) + ' BPM. Press play.';
+  else r.message = 'The band did not join. It needs about five seconds of steady strumming. Try a longer, steadier clip, or set the tempo by hand.';
+  return r;
+}
+
+function paintResult() {
+  const r = clip.result;
+  $('res-join').textContent = r.joined ? r.joinT.toFixed(1) + ' s' : 'no';
+  $('res-bpm').textContent = r.bpm ? String(Math.round(r.bpm)) : '–';
+  $('res-chords').textContent = r.chords.length ? r.chords.slice(0, 14).join('  ') + (r.chords.length > 14 ? ' …' : '') : '–';
+  $('seek-time').textContent = '0:00 / ' + fmtTime(clip.dur);
+  $('play').disabled = !r.joined && !clip.bandBuf;
+}
+
+function ensureClipGraph(c) {
+  if (!gGuitar) {
+    gGuitar = c.createGain(); gBand = c.createGain();
+    gGuitar.connect(c.destination); gBand.connect(c.destination);
+  }
+  gGuitar.gain.value = +$('g-guitar').value / 100;
+  gBand.gain.value = +$('g-band').value / 100;
+}
+
+function clipPos() {
+  if (!play || !ctx) return 0;
+  return Math.max(0, ctx.currentTime - play.t0);
+}
+
+function startClipPlayback(offset) {
+  if (!clip || !clip.bandBuf) return;
+  stopLive();
+  stopClipPlayback();
+  setAudioSession('playback');
+  const c = getCtx();
+  ensureClipGraph(c);
+  const total = clip.bandBuf.duration;
+  offset = clamp(offset || 0, 0, Math.max(0, total - 0.05));
+  const gSrc = c.createBufferSource(); gSrc.buffer = clip.audio; gSrc.connect(gGuitar);
+  const bSrc = c.createBufferSource(); bSrc.buffer = clip.bandBuf; bSrc.connect(gBand);
+  const when = c.currentTime + 0.08;
+  gSrc.start(when, offset, Math.max(0.01, total - offset));
+  bSrc.start(when, offset);
+  const mine = { gSrc: gSrc, bSrc: bSrc, t0: when - offset };
+  bSrc.onended = () => { if (play === mine) { stopClipPlayback(); } };
+  play = mine;
+  $('play').textContent = 'Stop';
+  $('play').classList.add('running');
+  requestAnimationFrame(paintPlayhead);
+}
+
+function stopClipPlayback() {
+  if (play) {
+    const p = play;
+    play = null;
+    try { p.gSrc.onended = null; p.bSrc.onended = null; p.gSrc.stop(); } catch (e) { /* already stopped */ }
+    try { p.bSrc.stop(); } catch (e) { /* already stopped */ }
+    try { p.gSrc.disconnect(); p.bSrc.disconnect(); } catch (e) { /* ignore */ }
+  }
+  const b = $('play');
+  if (b) { b.textContent = 'Play'; b.classList.remove('running'); }
+  if (clip && clip.bandBuf) paintPlayheadAt(0, false);
+}
+
+function paintPlayhead() {
+  if (!play) return;
+  paintPlayheadAt(clipPos(), true);
+  requestAnimationFrame(paintPlayhead);
+}
+
+function paintPlayheadAt(t, playing) {
+  if (!clip) return;
+  const frac = clamp(t / (clip.bandBuf ? clip.bandBuf.duration : clip.dur), 0, 1);
+  $('playhead').style.left = (frac * 100) + '%';
+  $('seek-time').textContent = fmtTime(t) + ' / ' + fmtTime(clip.dur);
+}
+
+function drawTimeline() {
+  if (!clip || !clip.result) return;
+  const cv = $('tl'), wrap = $('tl-wrap');
+  const dpr = Math.min(window.devicePixelRatio || 1, 3);
+  const W = Math.max(200, Math.floor(wrap.clientWidth)), H = 132;
+  cv.width = Math.floor(W * dpr); cv.height = Math.floor(H * dpr);
+  cv.style.height = H + 'px';
+  const g = cv.getContext('2d');
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const css = getComputedStyle(document.documentElement);
+  const col = (n) => css.getPropertyValue(n).trim();
+  g.clearRect(0, 0, W, H);
+  const total = clip.bandBuf.duration, sr = clip.sr;
+  const X = (t) => t / total * W;
+  // where the band is playing
+  g.fillStyle = col('--tl-band');
+  const tr = clip.trace;
+  let s0 = null;
+  for (let i = 0; i < tr.length; i++) {
+    const on = tr[i][3], t = tr[i][0] / sr;
+    if (on && s0 === null) s0 = t;
+    if ((!on || i === tr.length - 1) && s0 !== null) { g.fillRect(X(s0), 0, Math.max(1, X(t) - X(s0)), H); s0 = null; }
+  }
+  // the guitar, as an envelope
+  if (!clip.peaks || clip.peaks.length !== W) {
+    const peaks = new Float32Array(W), m = clip.mono, per = m.length / W;
+    for (let x = 0; x < W; x++) {
+      let a = 0;
+      const i0 = Math.floor(x * per), i1 = Math.min(m.length, Math.floor((x + 1) * per));
+      for (let i = i0; i < i1; i++) { const v = m[i] < 0 ? -m[i] : m[i]; if (v > a) a = v; }
+      peaks[x] = a;
+    }
+    clip.peaks = peaks;
+  }
+  const mid = 46, norm = 1 / Math.max(clip.peak, 0.01);
+  g.fillStyle = col('--tl-wave');
+  for (let x = 0; x < W; x++) {
+    const h = Math.max(1, Math.sqrt(clip.peaks[x] * norm) * 24);
+    g.fillRect(x, mid - h, 1, h * 2);
+  }
+  // the band's hits: kick and snare as ticks, bass as bars on the lowest lane
+  const lg = clip.log;
+  for (let i = 0; i < lg.length; i++) {
+    const e = lg[i], x = Math.round(X(e[0] / sr));
+    if (e[1] === 'kick') { g.fillStyle = col('--tl-kick'); g.fillRect(x, 84, 2, 22); }
+    else if (e[1] === 'snare' || e[1] === 'brush' || e[1] === 'rim') { g.fillStyle = col('--tl-snare'); g.fillRect(x, 84, 2, 13); }
+    else if (e[1] === 'bass') { g.fillStyle = col('--tl-bass'); g.fillRect(x, 114, 2, 8); }
+  }
+  // chord names along the top, where the chord the band uses changes
+  g.font = '600 12px ' + (col('--font-body') || 'sans-serif');
+  g.fillStyle = col('--ink');
+  g.textBaseline = 'top';
+  let lastX = -100;
+  for (const r of chordRuns(tr)) {
+    const x = X(tr[r[1]][0] / sr);
+    if (x - lastX > 24) { g.fillText(r[0], x + 3, 3); lastX = x; }
+  }
+}
+
+function initClipControls() {
+  const file = $('clip-file');
+  file.addEventListener('change', () => { if (file.files && file.files[0]) loadClip(file.files[0]); file.value = ''; });
+  $('cstyle').value = prefs.cStyle;
+  $('cstyle').addEventListener('change', () => { prefs.cStyle = $('cstyle').value; savePrefs(); });
+  const setUI = () => {
+    $('c-auto').setAttribute('aria-pressed', String(prefs.cTempoMode === 'auto'));
+    $('c-fixed').setAttribute('aria-pressed', String(prefs.cTempoMode === 'fixed'));
+    $('c-bpm-box').hidden = prefs.cTempoMode !== 'fixed';
+    $('c-bpm').value = prefs.cBpm;
+  };
+  $('c-auto').addEventListener('click', () => { prefs.cTempoMode = 'auto'; savePrefs(); setUI(); });
+  $('c-fixed').addEventListener('click', () => { prefs.cTempoMode = 'fixed'; savePrefs(); setUI(); });
+  $('c-bpm').addEventListener('change', () => { prefs.cBpm = clamp(Math.round(+$('c-bpm').value) || 100, 40, 220); $('c-bpm').value = prefs.cBpm; savePrefs(); });
+  setUI();
+  $('clip-run').addEventListener('click', runClip);
+  $('play').addEventListener('click', () => { if (play) stopClipPlayback(); else startClipPlayback(0); });
+  const gv = () => { if (gGuitar) gGuitar.gain.value = +$('g-guitar').value / 100; if (gBand) gBand.gain.value = +$('g-band').value / 100; };
+  $('g-guitar').addEventListener('input', () => { $('g-guitar-o').textContent = $('g-guitar').value + '%'; gv(); });
+  $('g-band').addEventListener('input', () => { $('g-band-o').textContent = $('g-band').value + '%'; gv(); });
+  $('tl-wrap').addEventListener('pointerdown', (e) => {
+    if (!clip || !clip.bandBuf) return;
+    const r = $('tl-wrap').getBoundingClientRect();
+    const t = clamp((e.clientX - r.left) / r.width, 0, 1) * clip.bandBuf.duration;
+    startClipPlayback(t);
+  });
+  window.addEventListener('resize', () => { if (clip && clip.result) { clip.peaks = null; drawTimeline(); } });
+}
+
+// ---------------------------------------------------------------------------------------
+// tabs and start-up
+// ---------------------------------------------------------------------------------------
+function showTab(name) {
+  for (const t of ['live', 'clip']) {
+    const on = t === name;
+    $('tab-' + t).setAttribute('aria-selected', String(on));
+    $('panel-' + t).hidden = !on;
+  }
+  if (name === 'clip') { stopLive(); if (clip && clip.result) requestAnimationFrame(() => { clip.peaks = null; drawTimeline(); }); }
+  else stopClipPlayback();
+  try { history.replaceState(null, '', '#' + name); } catch (e) { try { location.hash = name; } catch (e2) { /* ignore */ } }
+}
+
+function init() {
+  $('tab-live').addEventListener('click', () => showTab('live'));
+  $('tab-clip').addEventListener('click', () => showTab('clip'));
+  initLiveControls();
+  initClipControls();
+  const f = micFacts();
+  const chip = $('mic-chip');
+  if (!f.gum || f.policy === false) {
+    chip.textContent = 'Mic blocked here';
+    chip.dataset.tone = 'bad';
+    $('mic-warn').hidden = false;
+  } else if (!f.secure) {
+    chip.textContent = 'Needs https';
+    chip.dataset.tone = 'bad';
+  } else {
+    chip.textContent = 'Mic off';
+  }
+  renderDiag();
+  paintReadout(null);
+  const h = (location.hash || '').replace('#', '');
+  const blocked = !f.gum || f.policy === false;
+  showTab(h === 'clip' || (blocked && h !== 'live') ? 'clip' : 'live');
+  window.addEventListener('hashchange', () => { const x = (location.hash || '').replace('#', ''); if (x === 'live' || x === 'clip') showTab(x); });
+  window.addEventListener('error', (e) => { setState('Something broke: ' + (e.message || 'unknown error'), 'bad'); });
+  // a hook for tests and for support: read-only view of what the page is doing
+  window.__jam = {
+    get status() { return lastStatus; },
+    get backend() { return live ? live.backend.kind : null; },
+    get clip() { return clip && clip.result ? Object.assign({ log: clip.log, trace: clip.trace, sr: clip.sr }, clip.result) : null; },
+    get ctx() { return ctx; },
+    debug: (on) => (live ? live.backend.debug(on) : null),
+    dump: () => (live ? live.backend.dump() : Promise.resolve({ out: new Float32Array(0), inp: new Float32Array(0) })),
+    send: function () { liveSend.apply(null, arguments); },
+    facts: micFacts,
+  };
+}
+
+init();
+})();
+
+</script>
+</body>
+</html>
