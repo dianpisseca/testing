@@ -360,7 +360,7 @@ function makeConfig(over) {
     sr: 44100, blocksize: 128, style: 'rock', bpm: null, bpm_min: 60.0, bpm_max: 180.0,
     gate_db: -50.0, level: 0.5, drums: true, bass: true, drum_level: 1.0, bass_level: 1.0,
     bass_tone: 'finger', latency_ms: 0.0, swing: null, humanize_ms: 4.0, fills: true,
-    stop_beats: 6, predict: true, seed: 1, record: false,
+    stop_beats: 6, predict: true, seed: 1, record: false, auto_gain: true, auto_gain_max: 40.0,
   };
   if (over) {
     for (const k of Object.keys(over)) {
@@ -731,29 +731,41 @@ const VEL = { x: 1.0, o: 0.72, g: 0.38 };
 
 const STYLES = {
   rock: { bpb: 4, swing: 0.5, fills: true,
-    mid: { kick: 'x.......x.o.....', snare: '....x.......x...', hat_c: 'x.o.x.o.x.o.x.o.', bass: 'R.R.R.R.R.R.R.R.' },
-    lo: { kick: 'x.......x.......', snare: '....g.......g...', hat_c: 'x...o...x...o...', bass: 'R.......R.......' },
-    hi: { kick: 'x.....o.x.o...o.', snare: '....x..g....x..g', hat_c: 'x.o.x.o.x.o.x...', hat_o: '..............o.', bass: 'R.R.R.R.R.R.R.5.' } },
-  folk: { bpb: 4, swing: 0.5, fills: false,
-    mid: { kick: 'x.......x.......', brush: '....x.......x...', hat_c: 'g.g.g.g.g.g.g.g.', bass: 'R...5...R...5...' },
+    mid: { kick: 'x.....o.x.o.....', snare: '....x.......x...', hat_c: 'x.o.x.o.x.o.x.o.', bass: 'R.R.R.R.R.R.5.8.' },
+    mid2: { kick: 'x.....o.x.o...o.', snare: '....x..g....x.g.', hat_c: 'x.o.x.o.x.o.x...', hat_o: '..............o.', bass: 'R.R.8.R.R.R.3.5.' },
+    lo: { kick: 'x.......x.o.....', snare: '....o.......o...', hat_c: 'x...o...x...o...', bass: 'R.....R.R.......' },
+    hi: { kick: 'x..o..o.x.o...o.', snare: '....x..g.g..x..g', hat_c: 'x.o.x.o.x.o.x.o.', bass: 'R.R.8.R.R.5.7.8.' },
+    hi2: { kick: 'x.....o.x.ox..o.', snare: '....x..g....x.gg', hat_c: 'x.o.x.o.x.o.x...', hat_o: '..............o.', bass: 'R.R.R.8.R.5.3.5.' } },
+  folk: { bpb: 4, swing: 0.5, fills: true,
+    mid: { kick: 'x.......x.o.....', brush: '....x.......x...', hat_c: 'g.g.o.g.g.g.o.g.', bass: 'R...5...R...5.6.' },
+    mid2: { kick: 'x.....o.x.......', brush: '....x..g....x...', bass: 'R...5...R.R.5.3.' },
     lo: { kick: 'x...............', brush: '....g.......g...', hat_c: 'g...g...g...g...', bass: 'R.......5.......' },
-    hi: { kick: 'x.......x.o.....', brush: '....x.......x...', hat_c: 'o.o.o.o.o.o.o.o.', bass: 'R...5...R.R.5...' } },
-  ballad: { bpb: 4, swing: 0.5, fills: false,
-    mid: { kick: 'x.....o.........', snare: '........o.......', hat_c: 'o.o.o.o.o.o.o.o.', bass: 'R.......R.......' },
+    hi: { kick: 'x.....o.x.o.....', brush: '....x..g....x.g.', hat_c: 'o.o.o.o.o.o.o.o.', bass: 'R.R.5...R.R.5.6.' },
+    hi2: { bass: 'R.R.5.6.8.6.5.3.' } },
+  ballad: { bpb: 4, swing: 0.5, fills: true,
+    mid: { kick: 'x.....o.x.......', snare: '........x.......', hat_c: 'o.g.o.g.o.g.o.g.', bass: 'R.....R.5.......' },
+    mid2: { kick: 'x.....o.x.....o.', snare: '........x.....g.', bass: 'R.....R.5...3.5.' },
     lo: { kick: 'x...............', snare: '................', hat_c: 'g...g...g...g...', bass: 'R...............' },
-    hi: { kick: 'x.....o.....o...', snare: '........x.......', hat_c: 'o.o.o.o.o.o.o.o.', bass: 'R.......R.....5.' } },
+    hi: { kick: 'x.....o.x...o...', snare: '........x.....g.', hat_c: 'o.o.o.o.o.o.o.o.', bass: 'R.....R.5...8.5.' },
+    hi2: { bass: 'R...5.R.8...5.3.' } },
   shuffle: { bpb: 4, swing: 0.667, fills: true,
-    mid: { kick: 'x.......x.......', snare: '....x.......x...', hat_c: 'x.o.x.o.x.o.x.o.', bass: 'R.R.R.R.R.R.R.R.' },
-    lo: { kick: 'x.......x.......', snare: '................', hat_c: 'x...x...x...x...', bass: 'R.......R.......' },
-    hi: { kick: 'x.....o.x.....o.', snare: '....x.......x...', hat_c: 'x.o.x.o.x.o.x.o.', bass: 'R.R.3.5.6.5.3.R.' } },
+    mid: { kick: 'x.......x.....o.', snare: '....x.......x...', hat_c: 'x.o.x.o.x.o.x.o.', bass: 'R.R.3.3.5.5.6.5.' },
+    mid2: { kick: 'x.....o.x.......', snare: '....x.....g.x...', bass: 'R.R.3.3.5.5.7.5.' },
+    lo: { kick: 'x.......x.......', snare: '....g.......g...', hat_c: 'x...x...x...x...', bass: 'R.......R...5...' },
+    hi: { kick: 'x.....o.x.....o.', snare: '....x.g.....x.g.', hat_c: 'x.o.x.o.x.o.x.o.', bass: 'R.R.3.5.6.5.3.R.' },
+    hi2: { bass: 'R.3.5.6.7.6.5.3.' } },
   disco: { bpb: 4, swing: 0.5, fills: true,
-    mid: { kick: 'x...x...x...x...', snare: '....x.......x...', hat_c: 'x...x...x...x...', hat_o: '..o...o...o...o.', bass: 'R.8.R.8.R.8.R.8.' },
-    lo: { kick: 'x...x...x...x...', snare: '................', hat_c: 'x...x...x...x...', hat_o: '................', bass: 'R.......R.......' },
-    hi: { kick: 'x...x...x...x...', snare: '....x.......x...', hat_c: 'x.g.x.g.x.g.x.g.', hat_o: '..o...o...o...o.', bass: 'R.8.R.8.R.8.R.8.' } },
+    mid: { kick: 'x...x...x...x...', snare: '....x.......x...', hat_c: 'x.g.x.g.x.g.x.g.', hat_o: '..o...o...o...o.', bass: 'R.8.R.8.R.8.5.8.' },
+    mid2: { snare: '....x.......x..g', bass: 'R.8.R.8.R.8.7.8.' },
+    lo: { kick: 'x...x...x...x...', snare: '................', hat_c: 'x...x...x...x...', hat_o: '................', bass: 'R.......R.8.....' },
+    hi: { kick: 'x...x...x...x...', snare: '....x..g....x..g', hat_c: 'x.g.x.g.x.g.x.g.', hat_o: '..o...o...o...o.', bass: 'R.8.R.8.5.8.7.8.' },
+    hi2: { bass: 'R.R.8.R.8.7.5.8.' } },
   waltz: { bpb: 3, swing: 0.5, fills: false,
     mid: { kick: 'x...........', brush: '....o...o...', hat_c: 'o.o.o.o.o.o.', bass: 'R...5...5...' },
+    mid2: { kick: 'x.........o.', bass: 'R...3...5...' },
     lo: { kick: 'x...........', brush: '............', hat_c: 'g...g...g...', bass: 'R...........' },
-    hi: { kick: 'x...........', brush: '....x...x...', hat_c: 'o.o.o.o.o.o.', bass: 'R...5...5...' } },
+    hi: { kick: 'x.........o.', brush: '....x...x.g.', hat_c: 'o.o.o.o.o.o.', bass: 'R...5...3.5.' },
+    hi2: { bass: 'R...3...5.8.' } },
 };
 
 // sample name, gain, choke group
@@ -764,12 +776,19 @@ const INSTR = {
   tom_l: ['tom_l', 0.85, null],
 };
 const BASS_GAIN = 0.85;
-const FILL = { 12: [['snare', 0.55]], 13: [['snare', 0.65]], 14: [['tom_m', 0.85]], 15: [['tom_l', 1.0]] };
+const FILLS = [
+  { 12: [['snare', 0.55]], 13: [['snare', 0.65]], 14: [['tom_m', 0.85]], 15: [['tom_l', 1.0]] },
+  { 12: [['tom_h', 0.8]], 13: [['tom_h', 0.7]], 14: [['tom_m', 0.85]], 15: [['tom_l', 1.0]] },
+  { 12: [['snare', 0.5], ['kick', 0.8]], 14: [['snare', 0.8]], 15: [['snare', 0.95], ['kick', 0.7]] },
+  { 12: [['kick', 0.8]], 13: [['snare', 0.6]], 14: [['snare', 0.75], ['tom_h', 0.7]], 15: [['tom_l', 0.95]] },
+];
+const FILL_SMALL = { 12: [['kick', 0.8], ['hat_c', 0.7]], 14: [['snare', 0.6]], 15: [['snare', 0.85]] };
 
 (function checkStyles() {
   for (const name of Object.keys(STYLES)) {
     const st = STYLES[name], n = 4 * st.bpb;
-    for (const tier of ['mid', 'lo', 'hi']) {
+    for (const tier of ['mid', 'lo', 'hi', 'mid2', 'lo2', 'hi2']) {
+      if (!st[tier]) continue;
       for (const inst of Object.keys(st[tier])) {
         if (st[tier][inst].length !== n) throw new Error('bad pattern ' + name + ' ' + tier + ' ' + inst);
       }
@@ -1354,27 +1373,32 @@ class Engine {
     this.nsteps = 4 * this.bpb;
     this.pat = {};
     for (const tier of ['lo', 'mid', 'hi']) {
-      let d = Object.assign({}, st.mid, st[tier]);
-      if (tier === 'lo') {                          // 'lo' replaces, not extends
-        const keep = {};
-        for (const k of Object.keys(d)) if (k in st.lo || k === 'bass') keep[k] = d[k];
-        d = keep;
+      const built = [];
+      for (const variant of ['', '2']) {
+        let d = Object.assign({}, st.mid, st[tier]);
+        if (tier === 'lo') {                          // 'lo' replaces, not extends
+          const keep = {};
+          for (const k of Object.keys(d)) if (k in st.lo || k === 'bass') keep[k] = d[k];
+          d = keep;
+        }
+        if (variant && st[tier + '2']) d = Object.assign(d, st[tier + '2']);
+        const drums = [];
+        for (let i = 0; i < this.nsteps; i++) drums.push([]);
+        for (const inst of Object.keys(d)) {
+          if (inst === 'bass') continue;
+          const pat = d[inst];
+          for (let i = 0; i < pat.length; i++) if (VEL[pat[i]] !== undefined) drums[i].push([inst, VEL[pat[i]]]);
+        }
+        const bass = new Array(this.nsteps).fill(null);
+        const steps = [];
+        for (let i = 0; i < d.bass.length; i++) if (d.bass[i] !== '.') steps.push(i);
+        for (let k = 0; k < steps.length; k++) {
+          const i = steps[k], nxt = steps[(k + 1) % steps.length];
+          bass[i] = [d.bass[i], mod(nxt - i, this.nsteps) || this.nsteps];
+        }
+        built.push(drums, bass);
       }
-      const drums = [];
-      for (let i = 0; i < this.nsteps; i++) drums.push([]);
-      for (const inst of Object.keys(d)) {
-        if (inst === 'bass') continue;
-        const pat = d[inst];
-        for (let i = 0; i < pat.length; i++) if (VEL[pat[i]] !== undefined) drums[i].push([inst, VEL[pat[i]]]);
-      }
-      const bass = new Array(this.nsteps).fill(null);
-      const steps = [];
-      for (let i = 0; i < d.bass.length; i++) if (d.bass[i] !== '.') steps.push(i);
-      for (let k = 0; k < steps.length; k++) {
-        const i = steps[k], nxt = steps[(k + 1) % steps.length];
-        bass[i] = [d.bass[i], mod(nxt - i, this.nsteps) || this.nsteps];
-      }
-      this.pat[tier] = [drums, bass];
+      this.pat[tier] = built;
     }
     this.use_fills = st.fills && this.cfg.fills;
     this.ev = new Float64Array(this.bpb);
@@ -1454,6 +1478,7 @@ class Engine {
     const n0 = this.n;
     this.n_block0 = n0;
     this._runCommands();
+    if (this.cfg.auto_gain) x = this._autoGain(x, B);
     const hist = this.hist, hm = this.hmask;
     for (let i = 0; i < B; i++) hist[(n0 + i) & hm] = x[i];
     this.n = n0 + B;
@@ -1478,6 +1503,23 @@ class Engine {
       const s = this.status();
       this.trace.push([this.n, s.bpm, s.locked, s.active, s.chord, s.intensity]);
     }
+  }
+
+  // quiet phone microphones: bring the guitar up to a working level (slow, so dynamics survive)
+  _autoGain(x, B) {
+    if (!this._agBuf || this._agBuf.length < B) { this._agBuf = new Float32Array(Math.max(B, 1024)); this._agEnv = 0.03; this._agG = 10.0; }
+    let pk = 0.0;
+    for (let i = 0; i < B; i++) { const a = x[i] < 0 ? -x[i] : x[i]; if (a > pk) pk = a; }
+    if (pk > this._agEnv) this._agEnv = pk;
+    else if (pk > this._agEnv * 0.05) this._agEnv *= Math.exp(-B / (this.sr * 3.0));   // only while there is playing
+    const maxG = this.cfg.auto_gain_max || 40.0;
+    const target = Math.min(maxG, Math.max(1.0, 0.3 / Math.max(this._agEnv, 1e-5)));
+    const g0 = this._agG;
+    const g1 = target < g0 ? target : g0 + (target - g0) * Math.min(1.0, B / (this.sr * 0.5));
+    this._agG = g1;
+    const o = this._agBuf, dg = (g1 - g0) / B;
+    for (let i = 0; i < B; i++) o[i] = x[i] * (g0 + dg * i);
+    return o;
   }
 
   // ----- frames, onsets, levels ----------------------------------------------------------------
@@ -1823,17 +1865,20 @@ class Engine {
     if (barStep === 0) {
       this._chooseTier();
       this.cur_crash = this.prev_fill;
-      this.cur_fill = !!(this.use_fills && this.tier !== 'lo' && mod(barIdx + 1, 4) === 0);
-      this.prev_fill = this.cur_fill;
+      const big = mod(barIdx + 1, 4) === 0;
+      this.cur_fill = !!(this.use_fills && this.tier !== 'lo' && (big || mod(barIdx + 1, 2) === 0));
+      this.fill_map = big ? FILLS[Math.floor(this.rng.next() * FILLS.length) % FILLS.length] : FILL_SMALL;
+      this.prev_fill = this.cur_fill && big;
+      this.bar_var = mod(barIdx, 2);
     }
-    const pat = this.pat[this.tier], drums = pat[0], bass = pat[1];
+    const pat = this.pat[this.tier], vv = (this.bar_var || 0) * 2, drums = pat[vv], bass = pat[vv + 1];
     const vs = 0.62 + 0.38 * this.intensity;
     const hum = cfg.humanize_ms * 1e-3 * sr;
     const jit = hum > 0 ? Math.trunc(Math.max(-hum, Math.min(hum, this.rng.normal(0.0, hum / 2.0)))) : 0;
     const d = Math.max(0, delay + jit);
     if (this.drums_on) {
       let hits = drums[barStep];
-      if (this.cur_fill && this.bpb === 4 && barStep >= 12) hits = FILL[barStep] || [];
+      if (this.cur_fill && this.bpb === 4 && barStep >= 12) hits = (this.fill_map || FILL_SMALL)[barStep] || [];
       for (let i = 0; i < hits.length; i++) this._hit(hits[i][0], hits[i][1] * vs * (1.0 + this.rng.uniform(-0.08, 0.08)), d);
       if (this.cur_crash && barStep === 0) this._hit('crash', 0.9 * vs, d);
     }
@@ -1846,7 +1891,12 @@ class Engine {
       }
       const vel = (0.7 + 0.3 * this.intensity) * (1.0 + (barStep === 0 ? 0.12 : 0)) * (1.0 + this.rng.uniform(-0.05, 0.05));
       const length = Math.trunc(nsteps * this.clock.period / 4.0);
-      this._playBass(degree, vel, length, d, chord);
+      let approach = null;
+      if (cfg.predict && barStep === this.nsteps - 2 && this.last_onset !== null) {   // lead into a learned change
+        const nx = this.memory.predict(b + 1);
+        if (nx !== null && CH_ROOT[nx] !== CH_ROOT[chord]) approach = bassMidi(CH_ROOT[nx], CH_Q[nx], 'R') - 1;
+      }
+      this._playBass(degree, vel, length, d, chord, approach);
     }
   }
 
@@ -1862,9 +1912,9 @@ class Engine {
     if (this.cfg.record) this.log.push([this.n_block0 + d, name, Math.round(vel * 1000) / 1000, this.cur_bar_step]);
   }
 
-  _playBass(degree, vel, length, d, chord) {
+  _playBass(degree, vel, length, d, chord, approach) {
     const root = CH_ROOT[chord], qual = CH_Q[chord];
-    const midi = bassMidi(root, qual, degree);
+    const midi = (approach !== null && approach !== undefined) ? approach : bassMidi(root, qual, degree);
     const gate = Math.max(Math.trunc(0.05 * this.sr), Math.trunc(length * GATE_NOTE));
     const data = this.kit.bass[Math.min(Math.max(midi, BASS_LO), BASS_HI)];
     this.mixer.add(data, vel * BASS_GAIN * this.cfg.bass_level, d, gate, Math.trunc(0.03 * this.sr), 'bass', Math.trunc(0.012 * this.sr));
